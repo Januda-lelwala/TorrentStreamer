@@ -143,6 +143,12 @@ ipcMain.handle('stop-stream', () => {
   });
 });
 
+console.log('[Main] Registering launch-media-player handler');
+ipcMain.handle('launch-media-player', async (event) => {
+  console.log('[Main] launch-media-player IPC handler called');
+  return await torrentManager.launchMediaPlayer();
+});
+
 // Handle window-all-closed event on macOS
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

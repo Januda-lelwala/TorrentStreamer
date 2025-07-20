@@ -276,108 +276,48 @@ class TorrentManager {
             // Call updateProgress immediately to show initial state
             updateProgress();
             
-            // Set up VLC launch function
-            const launchVLC = () => {
-              try {
-                const vlcArgs = [
-                  '--fullscreen',
-                  '--no-video-title-show',
-                  '--no-osd',
-                  selectedFilePath
-                ];
+            // Set minimum download size for media player readiness
+            const minDownloadSize = 1024 * 1024; // 1MB minimum before enabling media player launch
+            
+            // Function to check if media player is ready
+            let mediaPlayerReady = false;
+            const checkMediaPlayerReady = () => {
+              if (!mediaPlayerReady && this.currentTorrent) {
+                const downloaded = this.currentTorrent.downloaded || 0;
+                const fileExists = fs.existsSync(selectedFilePath);
                 
-                // Try different VLC paths based on the operating system
-                let vlcPath;
-                if (process.platform === 'darwin') {
-                  // macOS paths
-                  vlcPath = '/Applications/VLC.app/Contents/MacOS/VLC';
-                } else if (process.platform === 'win32') {
-                  // Windows paths
-                  vlcPath = 'vlc'; // Assuming VLC is in PATH on Windows
-                } else {
-                  // Linux paths
-                  vlcPath = 'vlc'; // Assuming VLC is in PATH on Linux
+                console.log(`[DEBUG] Checking media player readiness: ${downloaded} bytes downloaded, file exists: ${fileExists}`);
+                
+                // Enable media player if we have enough data OR file exists
+                if (downloaded > minDownloadSize || fileExists) {
+                  console.log('[DEBUG] Media player ready condition met, sending event');
+                  mediaPlayerReady = true;
+                  this.mainWindow.webContents.send('media-player-ready', {
+                    filePath: selectedFilePath,
+                    fileName: file.name,
+                    downloaded: downloaded
+                  });
                 }
-                
-                // Check if VLC exists at the specified path (for macOS)
-                if (process.platform === 'darwin' && !fs.existsSync(vlcPath)) {
-                  throw new Error('VLC not found at /Applications/VLC.app/Contents/MacOS/VLC. Please install VLC Media Player.');
-                }
-                
-
-                this.vlcProcess = spawn(vlcPath, vlcArgs);
-                console.log('[TorrentManager] VLC started successfully with path:', vlcPath);
-                
-                // Handle VLC process errors
-                this.vlcProcess.on('error', (error) => {
-                  console.error('[TorrentManager] VLC process error:', error);
-                  let errorMessage = 'Failed to start VLC player';
-                  if (error.code === 'ENOENT') {
-                    errorMessage = 'VLC Media Player not found. Please install VLC from https://www.videolan.org/vlc/';
-                  }
-                  this.mainWindow.webContents.send('stream-error', errorMessage);
-                });
-                
-                // Handle VLC process exit
-                this.vlcProcess.on('exit', (code, signal) => {
-                  console.log(`[TorrentManager] VLC process exited with code ${code} and signal ${signal}`);
-                  if (code !== 0 && code !== null) {
-                    const errorMessage = `VLC exited unexpectedly with code ${code}`;
-                    this.mainWindow.webContents.send('stream-error', errorMessage);
-                  }
-                });
-                
-              } catch (error) {
-                console.error('[TorrentManager] Failed to start VLC:', error);
-                let errorMessage = 'Failed to start VLC player';
-                if (error.message.includes('VLC not found')) {
-                  errorMessage = error.message;
-                }
-                this.mainWindow.webContents.send('stream-error', errorMessage);
-                throw error;
               }
             };
             
-            // Wait for some data to be downloaded before launching VLC
-            let vlcLaunched = false;
-            const minDownloadSize = 1024 * 1024; // 1MB minimum before launching VLC
+            // Check immediately after torrent is ready
+            setTimeout(() => checkMediaPlayerReady(), 1000);
             
-            // Set up a fallback timer to launch VLC after 10 seconds even if file doesn't exist
-            const fallbackTimer = setTimeout(() => {
-              if (!vlcLaunched) {
-                console.log('[TorrentManager] Fallback: Launching VLC after timeout...');
-                vlcLaunched = true;
-                try {
-                  launchVLC();
-                  this.mainWindow.webContents.send('stream-started', {
-                    name: torrent.name,
-                    file: file.name,
-                    size: file.length
-                  });
-                } catch (error) {
-                  console.error('[TorrentManager] Fallback VLC launch failed:', error);
-                }
+            // Set up periodic check every 2 seconds
+            const mediaPlayerCheckInterval = setInterval(() => {
+              if (mediaPlayerReady || !this.currentTorrent) {
+                clearInterval(mediaPlayerCheckInterval);
+                return;
               }
-            }, 10000); // 10 second fallback
+              checkMediaPlayerReady();
+            }, 2000);
             
             // Handle download progress
             torrent.on('download', () => {
               try {
                 updateProgress();
-                
-                // Launch VLC once we have enough data downloaded OR file exists
-                if (!vlcLaunched && (torrent.downloaded > minDownloadSize || fs.existsSync(selectedFilePath))) {
-                  vlcLaunched = true;
-                  clearTimeout(fallbackTimer); // Clear the fallback timer
-                  launchVLC();
-                  
-                  // Notify that streaming has started
-                  this.mainWindow.webContents.send('stream-started', {
-                    name: torrent.name,
-                    file: file.name,
-                    size: file.length
-                  });
-                }
+                checkMediaPlayerReady();
               } catch (error) {
                 console.error('[TorrentManager] Error in download handler:', error);
                 this.mainWindow.webContents.send('stream-error', `Download error: ${error.message}`);
@@ -419,6 +359,99 @@ class TorrentManager {
     }
   }
 
+
+  async launchMediaPlayer() {
+    try {
+      if (!this.currentTorrent) {
+        throw new Error('No active torrent to launch media player for');
+      }
+      
+      // Find the selected video file
+      const supportedExts = ['.mp4', '.mkv', '.webm', '.avi', '.mov'];
+      const videoFiles = this.currentTorrent.files.filter(f => 
+        supportedExts.some(ext => f.name.toLowerCase().endsWith(ext))
+      );
+      
+      if (videoFiles.length === 0) {
+        throw new Error('No supported video file found in torrent');
+      }
+      
+      const file = videoFiles.reduce((a, b) => a.length > b.length ? a : b);
+      const selectedFilePath = path.join(this.tempDir, file.path);
+      
+      // Check if file exists and has some data
+      if (!fs.existsSync(selectedFilePath)) {
+        throw new Error('Media file not found. Please wait for download to start.');
+      }
+      
+      // Build VLC arguments
+      const vlcArgs = [
+        '--fullscreen',
+        '--no-video-title-show',
+        '--no-osd',
+        selectedFilePath
+      ];
+      
+      // Determine VLC path based on OS
+      let vlcPath;
+      if (process.platform === 'darwin') {
+        vlcPath = '/Applications/VLC.app/Contents/MacOS/VLC';
+      } else if (process.platform === 'win32') {
+        vlcPath = 'vlc';
+      } else {
+        vlcPath = 'vlc';
+      }
+      
+      // Check if VLC exists on macOS
+      if (process.platform === 'darwin' && !fs.existsSync(vlcPath)) {
+        throw new Error('VLC not found at /Applications/VLC.app/Contents/MacOS/VLC. Please install VLC Media Player.');
+      }
+      
+      // Kill existing VLC process if running
+      if (this.vlcProcess) {
+        this.vlcProcess.kill();
+      }
+      
+      this.vlcProcess = spawn(vlcPath, vlcArgs);
+      console.log('[TorrentManager] VLC started successfully with path:', vlcPath);
+      
+      // Handle VLC process errors
+      this.vlcProcess.on('error', (error) => {
+        console.error('[TorrentManager] VLC process error:', error);
+        let errorMessage = 'Failed to start VLC player';
+        if (error.code === 'ENOENT') {
+          errorMessage = 'VLC Media Player not found. Please install VLC from https://www.videolan.org/vlc/';
+        }
+        this.mainWindow.webContents.send('stream-error', errorMessage);
+      });
+      
+      // Handle VLC process exit
+      this.vlcProcess.on('exit', (code, signal) => {
+        console.log(`[TorrentManager] VLC process exited with code ${code} and signal ${signal}`);
+        if (code !== 0 && code !== null) {
+          const errorMessage = `VLC exited unexpectedly with code ${code}`;
+          this.mainWindow.webContents.send('stream-error', errorMessage);
+        }
+      });
+      
+      // Notify that VLC has been launched
+      this.mainWindow.webContents.send('media-player-launched', {
+        filePath: selectedFilePath,
+        fileName: file.name
+      });
+      
+      return {
+        success: true,
+        filePath: selectedFilePath,
+        fileName: file.name
+      };
+      
+    } catch (error) {
+      console.error('[TorrentManager] Error launching media player:', error);
+      this.mainWindow.webContents.send('stream-error', error.message);
+      throw error;
+    }
+  }
 
   async stopStream() {
     await this.ensureInitialized();

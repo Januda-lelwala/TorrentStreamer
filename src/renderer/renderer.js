@@ -29,6 +29,20 @@ const elements = {
     closeBtn: null
 };
 
+// Function to launch the media player
+async function launchMediaPlayer() {
+    try {
+        await window.api.invoke('launch-media-player');
+    } catch (error) {
+        console.error('Error launching media player:', error);
+        
+        const statusElement = document.getElementById('status');
+        if (statusElement) {
+            statusElement.textContent = `Error launching media player: ${error.message}`;
+        }
+    }
+}
+
 // Function to stop the current stream
 async function stopStream() {
     try {
@@ -77,6 +91,13 @@ async function stopStream() {
         const numPeersElement = document.getElementById('numPeers');
         if (numPeersElement) {
             numPeersElement.textContent = '0';
+        }
+        
+        // Disable launch button
+        const launchPlayerBtn = document.getElementById('launchPlayerBtn');
+        if (launchPlayerBtn) {
+            launchPlayerBtn.disabled = true;
+            launchPlayerBtn.className = 'bg-gray-500 px-6 py-2 rounded-lg font-medium transition-colors text-gray-300 cursor-not-allowed';
         }
         
         // Hide video placeholder
@@ -177,6 +198,36 @@ window.api.receive('stream-started', (streamInfo) => {
 // Handle download progress
 window.api.receive('download-progress', (progress) => {
     updateProgressDisplay(progress);
+});
+
+// Handle media player ready event
+window.api.receive('media-player-ready', (data) => {
+    console.log('[DEBUG] Media player ready event received:', data);
+    const launchPlayerBtn = document.getElementById('launchPlayerBtn');
+    console.log('[DEBUG] Launch button element found:', !!launchPlayerBtn);
+    if (launchPlayerBtn) {
+        console.log('[DEBUG] Enabling launch button');
+        // Enable the button and change styling
+        launchPlayerBtn.disabled = false;
+        launchPlayerBtn.className = 'bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-medium transition-colors text-white cursor-pointer';
+    } else {
+        console.error('[DEBUG] Launch button element not found!');
+    }
+    
+    const statusElement = document.getElementById('status');
+    if (statusElement) {
+        statusElement.textContent = 'Ready to launch media player';
+        console.log('[DEBUG] Status updated to: Ready to launch media player');
+    }
+});
+
+// Handle media player launched event
+window.api.receive('media-player-launched', (data) => {
+    console.log('Media player launched:', data);
+    const statusElement = document.getElementById('status');
+    if (statusElement) {
+        statusElement.textContent = `Media player launched: ${data.fileName}`;
+    }
 });
 
 // Function to update progress display
@@ -280,6 +331,11 @@ function setupEventListeners() {
     
     if (stopBtn) {
         stopBtn.addEventListener('click', stopStream);
+    }
+    
+    const launchPlayerBtn = document.getElementById('launchPlayerBtn');
+    if (launchPlayerBtn) {
+        launchPlayerBtn.addEventListener('click', launchMediaPlayer);
     }
     
     // Media player controls
@@ -550,6 +606,13 @@ async function startStream(magnet, name) {
     const statusElement = document.getElementById('status-text');
     if (statusElement) {
         statusElement.textContent = 'Starting stream...';
+    }
+    
+    // Disable launch button until ready
+    const launchPlayerBtn = document.getElementById('launchPlayerBtn');
+    if (launchPlayerBtn) {
+        launchPlayerBtn.disabled = true;
+        launchPlayerBtn.className = 'bg-gray-500 px-6 py-2 rounded-lg font-medium transition-colors text-gray-300 cursor-not-allowed';
     }
     
     // Show the progress container immediately
