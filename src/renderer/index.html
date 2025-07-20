@@ -24,6 +24,13 @@
                 >
                     Search
                 </button>
+                <button 
+                    id="testSearchBtn" 
+                    class="bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg font-medium transition-colors text-sm"
+                    title="Test search with 'ubuntu'"
+                >
+                    Test Search
+                </button>
             </div>
         </header>
 
@@ -41,43 +48,20 @@
                     </div>
                 </div>
                 
-                <div id="progress-container" class="hidden bg-gray-800 rounded-lg p-6 mb-6">
-                    <div class="mb-4">
-                        <div class="flex justify-between items-center mb-2">
-                            <span id="status" class="text-white font-medium">Preparing download...</span>
-                            <span id="status-text" class="text-gray-400 text-sm"></span>
-                        </div>
-                        <div class="w-full bg-gray-700 rounded-full h-3">
-                            <div id="progressBar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
-                        </div>
+                <div id="progress-container" class="hidden bg-gray-800 rounded-lg p-4 mb-6">
+                    <div class="flex justify-between mb-2">
+                        <span id="status">Connecting...</span>
+                        <span id="downloadSpeed">0 MB/s</span>
                     </div>
-                    
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                        <div class="text-center">
-                            <div class="text-gray-400">Speed</div>
-                            <div id="downloadSpeed" class="text-white font-medium">0 MB/s</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-gray-400">Downloaded</div>
-                            <div id="downloaded" class="text-white font-medium">0 MB</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-gray-400">Total Size</div>
-                            <div id="totalSize" class="text-white font-medium">0 MB</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-gray-400">Peers</div>
-                            <div id="numPeers" class="text-white font-medium">0</div>
-                        </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2.5">
+                        <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
                     </div>
-                    
-                    <div class="flex justify-center">
-                        <button 
-                            id="stopBtn" 
-                            class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded-lg font-medium transition-colors text-white"
-                        >
-                            Stop Download
-                        </button>
+                    <div class="flex justify-between mt-2 text-sm text-gray-400">
+                        <span id="downloaded">0 MB</span>
+                        <span id="totalSize">0 MB</span>
+                    </div>
+                    <div class="mt-2 text-xs text-gray-500">
+                        <span id="status-text">Ready to stream</span>
                     </div>
                 </div>
             </div>

@@ -29,72 +29,6 @@ const elements = {
     closeBtn: null
 };
 
-// Function to stop the current stream
-async function stopStream() {
-    try {
-        // Call the stop-stream IPC method
-        await window.api.invoke('stop-stream');
-        
-        // Hide the progress container
-        const progressContainer = document.getElementById('progress-container');
-        if (progressContainer) {
-            progressContainer.style.display = 'none';
-            progressContainer.classList.add('hidden');
-        }
-        
-        // Reset progress elements
-        const progressBar = document.getElementById('progressBar');
-        if (progressBar) {
-            progressBar.style.width = '0%';
-        }
-        
-        const statusElement = document.getElementById('status');
-        if (statusElement) {
-            statusElement.textContent = 'Download stopped';
-        }
-        
-        const statusTextElement = document.getElementById('status-text');
-        if (statusTextElement) {
-            statusTextElement.textContent = '';
-        }
-        
-        // Reset stats
-        const downloadSpeedElement = document.getElementById('downloadSpeed');
-        if (downloadSpeedElement) {
-            downloadSpeedElement.textContent = '0 MB/s';
-        }
-        
-        const downloadedElement = document.getElementById('downloaded');
-        if (downloadedElement) {
-            downloadedElement.textContent = '0 MB';
-        }
-        
-        const totalSizeElement = document.getElementById('totalSize');
-        if (totalSizeElement) {
-            totalSizeElement.textContent = '0 MB';
-        }
-        
-        const numPeersElement = document.getElementById('numPeers');
-        if (numPeersElement) {
-            numPeersElement.textContent = '0';
-        }
-        
-        // Hide video placeholder
-        const videoPlaceholder = document.getElementById('video-placeholder');
-        if (videoPlaceholder) {
-            videoPlaceholder.style.display = 'none';
-        }
-        
-    } catch (error) {
-        console.error('Error stopping stream:', error);
-        
-        const statusElement = document.getElementById('status');
-        if (statusElement) {
-            statusElement.textContent = `Error stopping stream: ${error.message}`;
-        }
-    }
-}
-
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     initElements();
@@ -181,11 +115,22 @@ window.api.receive('download-progress', (progress) => {
 
 // Function to update progress display
 function updateProgressDisplay(progress) {
+    console.log('=== PROGRESS UPDATE ===');
+    console.log('Raw progress data:', progress);
+    console.log('Progress percentage:', progress.progress);
+    console.log('Download speed:', progress.downloadSpeed);
+    console.log('Downloaded bytes:', progress.downloaded);
+    console.log('Total size:', progress.totalSize);
+    console.log('Number of peers:', progress.numPeers);
+    
     // Show the progress container
     const progressContainer = document.getElementById('progress-container');
     if (progressContainer) {
         progressContainer.style.display = 'block';
         progressContainer.classList.remove('hidden');
+        console.log('Progress container is now visible');
+    } else {
+        console.error('Progress container element not found!');
     }
     
     // Update progress bar
@@ -193,6 +138,9 @@ function updateProgressDisplay(progress) {
     if (progressBar && progress.progress !== undefined) {
         const progressPercent = Math.min(progress.progress || 0, 100);
         progressBar.style.width = `${progressPercent}%`;
+        console.log(`Progress bar updated to: ${progressPercent}%`);
+    } else {
+        console.error('Progress bar element not found or progress undefined');
     }
     
     // Update status text
@@ -203,7 +151,10 @@ function updateProgressDisplay(progress) {
         } else {
             const progressText = `Downloading... ${(progress.progress || 0).toFixed(1)}%`;
             statusElement.textContent = progressText;
+            console.log('Status updated to:', progressText);
         }
+    } else {
+        console.error('Status element not found!');
     }
     
     // Update download speed
@@ -212,6 +163,9 @@ function updateProgressDisplay(progress) {
         const speedBytes = progress.downloadSpeed || 0;
         const speedMBps = (speedBytes / (1024 * 1024)).toFixed(2);
         downloadSpeedElement.textContent = `${speedMBps} MB/s`;
+        console.log(`Download speed updated to: ${speedMBps} MB/s (${speedBytes} bytes/s)`);
+    } else {
+        console.error('Download speed element not found!');
     }
     
     // Update downloaded amount
@@ -220,6 +174,9 @@ function updateProgressDisplay(progress) {
         const downloadedBytes = progress.downloaded || 0;
         const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(1);
         downloadedElement.textContent = `${downloadedMB} MB`;
+        console.log(`Downloaded amount updated to: ${downloadedMB} MB (${downloadedBytes} bytes)`);
+    } else {
+        console.error('Downloaded element not found!');
     }
     
     // Update total size (if available)
@@ -228,6 +185,9 @@ function updateProgressDisplay(progress) {
         const totalBytes = progress.totalSize || 0;
         const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
         totalSizeElement.textContent = `${totalMB} MB`;
+        console.log(`Total size updated to: ${totalMB} MB (${totalBytes} bytes)`);
+    } else {
+        console.error('Total size element not found!');
     }
     
     // Update peers info if available
@@ -235,7 +195,10 @@ function updateProgressDisplay(progress) {
         const peersInfo = `${progress.numPeers} peers`;
         const statusWithPeers = `Downloading... ${(progress.progress || 0).toFixed(1)}% (${peersInfo})`;
         statusElement.textContent = statusWithPeers;
+        console.log('Status with peers updated to:', statusWithPeers);
     }
+    
+    console.log('=== END PROGRESS UPDATE ===');
 }
 
 function initElements() {
@@ -260,26 +223,15 @@ function initElements() {
     elements.playPauseBtn = document.getElementById('playPauseBtn');
     elements.playPauseIcon = document.getElementById('playPauseIcon');
     elements.seekBar = document.getElementById('seekBar');
-    elements.stopBtn = document.getElementById('stopBtn');
 }
 
 function setupEventListeners() {
-    const searchBtn = document.getElementById('searchBtn');
-    const searchInput = document.getElementById('searchInput');
-    const stopBtn = document.getElementById('stopBtn');
-    
-    if (searchBtn) {
-        searchBtn.addEventListener('click', handleSearch);
-    }
-    
-    if (searchInput) {
-        searchInput.addEventListener('keypress', (e) => {
+    // Search functionality
+    if (elements.searchBtn && elements.searchInput) {
+        elements.searchBtn.addEventListener('click', handleSearch);
+        elements.searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') handleSearch();
         });
-    }
-    
-    if (stopBtn) {
-        stopBtn.addEventListener('click', stopStream);
     }
     
     // Media player controls
@@ -546,6 +498,9 @@ function displayResults(results) {
 }
 
 async function startStream(magnet, name) {
+    console.log('Starting stream for:', name);
+    console.log('Magnet URI:', magnet);
+    
     // Show loading state
     const statusElement = document.getElementById('status-text');
     if (statusElement) {
@@ -557,6 +512,9 @@ async function startStream(magnet, name) {
     if (progressContainer) {
         progressContainer.style.display = 'block';
         progressContainer.classList.remove('hidden');
+        console.log('Progress container shown');
+    } else {
+        console.error('Progress container not found!');
     }
     
     // Initialize progress display
@@ -581,7 +539,9 @@ async function startStream(magnet, name) {
     
     try {
         // Send request to start the stream using invoke for proper response handling
+        console.log('Invoking start-stream with magnet:', magnet);
         const result = await window.api.invoke('start-stream', magnet);
+        console.log('Stream started successfully:', result);
         
         // Update status
         if (statusElement) {

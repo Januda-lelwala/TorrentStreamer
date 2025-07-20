@@ -259,7 +259,13 @@ class TorrentManager {
                   done: this.currentTorrent.done || false
                 };
                 
-
+                console.log('[TorrentManager] Sending progress update:', {
+                  progress: progress.progress,
+                  downloadSpeed: progress.downloadSpeed,
+                  downloaded: progress.downloaded,
+                  totalSize: progress.totalSize,
+                  numPeers: progress.numPeers
+                });
                 
                 this.mainWindow.webContents.send('download-progress', progress);
               };
@@ -275,6 +281,7 @@ class TorrentManager {
             
             // Call updateProgress immediately to show initial state
             updateProgress();
+            console.log('[TorrentManager] Initial progress update sent');
             
             // Set up VLC launch function
             const launchVLC = () => {
@@ -304,7 +311,7 @@ class TorrentManager {
                   throw new Error('VLC not found at /Applications/VLC.app/Contents/MacOS/VLC. Please install VLC Media Player.');
                 }
                 
-
+                console.log('[TorrentManager] Launching VLC with file:', selectedFilePath);
                 this.vlcProcess = spawn(vlcPath, vlcArgs);
                 console.log('[TorrentManager] VLC started successfully with path:', vlcPath);
                 
@@ -367,6 +374,7 @@ class TorrentManager {
                 
                 // Launch VLC once we have enough data downloaded OR file exists
                 if (!vlcLaunched && (torrent.downloaded > minDownloadSize || fs.existsSync(selectedFilePath))) {
+                  console.log(`[TorrentManager] Downloaded ${torrent.downloaded} bytes, file exists: ${fs.existsSync(selectedFilePath)}, launching VLC...`);
                   vlcLaunched = true;
                   clearTimeout(fallbackTimer); // Clear the fallback timer
                   launchVLC();
