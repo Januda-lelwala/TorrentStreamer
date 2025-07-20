@@ -106,15 +106,30 @@ ipcMain.on('search-torrents', async (event, query) => {
 });
 
 console.log('[Main] Registering start-stream handler');
-ipcMain.handle('start-stream', (event, magnetURI) => {
-  console.log('[Main] start-stream IPC handler called with magnet:', magnetURI);
-  return torrentManager.startStream(magnetURI).then(result => {
+ipcMain.handle('start-stream', async (event, magnetURI) => {
+  console.log('[Main] start-stream IPC handler called with magnet:', magnetURI?.substring(0, 50) + '...');
+  
+  if (!magnetURI || typeof magnetURI !== 'string') {
+    const error = new Error('Invalid magnet URI provided');
+    console.error('[Main] Error:', error.message);
+    throw error;
+  }
+  
+  if (!magnetURI.startsWith('magnet:')) {
+    const error = new Error('Invalid magnet URI format');
+    console.error('[Main] Error:', error.message);
+    throw error;
+  }
+  
+  try {
+    console.log('[Main] Starting torrent stream...');
+    const result = await torrentManager.startStream(magnetURI);
     console.log('[Main] startStream completed successfully');
     return result;
-  }).catch(error => {
+  } catch (error) {
     console.error('[Main] Error in startStream:', error);
     throw error;
-  });
+  }
 });
 
 console.log('[Main] Registering stop-stream handler');

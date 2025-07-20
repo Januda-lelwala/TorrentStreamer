@@ -77,15 +77,7 @@ window.api.receive('stream-started', (streamUrl) => {
 
 // Handle download progress updates
 window.api.receive('download-progress', (progress) => {
-    const progressBar = document.getElementById('progress-bar');
-    const statusText = document.getElementById('status-text');
-    const downloadSpeed = document.getElementById('download-speed');
-    const downloaded = document.getElementById('downloaded');
-    
-    if (progressBar) progressBar.style.width = `${progress.progress}%`;
-    if (statusText) statusText.textContent = `Downloading: ${progress.progress.toFixed(2)}%`;
-    if (downloadSpeed) downloadSpeed.textContent = `Speed: ${formatBytes(progress.downloadSpeed)}/s`;
-    if (downloaded) downloaded.textContent = `Downloaded: ${formatBytes(progress.downloaded)}`;
+    updateProgressDisplay(progress);
 });
 
 // Handle search results
@@ -105,6 +97,109 @@ window.api.receive('stream-error', (error) => {
     const streamBtn = document.getElementById('stream-btn');
     if (streamBtn) streamBtn.disabled = false;
 });
+
+// Handle stream started
+window.api.receive('stream-started', (streamInfo) => {
+    console.log('Stream started:', streamInfo);
+    const statusElement = document.getElementById('status-text');
+    if (statusElement) {
+        statusElement.textContent = `VLC launched! Playing: ${streamInfo.name}`;
+        statusElement.className = 'text-green-400';
+    }
+});
+
+// Handle download progress
+window.api.receive('download-progress', (progress) => {
+    updateProgressDisplay(progress);
+});
+
+// Function to update progress display
+function updateProgressDisplay(progress) {
+    console.log('=== PROGRESS UPDATE ===');
+    console.log('Raw progress data:', progress);
+    console.log('Progress percentage:', progress.progress);
+    console.log('Download speed:', progress.downloadSpeed);
+    console.log('Downloaded bytes:', progress.downloaded);
+    console.log('Total size:', progress.totalSize);
+    console.log('Number of peers:', progress.numPeers);
+    
+    // Show the progress container
+    const progressContainer = document.getElementById('progress-container');
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        progressContainer.classList.remove('hidden');
+        console.log('Progress container is now visible');
+    } else {
+        console.error('Progress container element not found!');
+    }
+    
+    // Update progress bar
+    const progressBar = document.getElementById('progressBar');
+    if (progressBar && progress.progress !== undefined) {
+        const progressPercent = Math.min(progress.progress || 0, 100);
+        progressBar.style.width = `${progressPercent}%`;
+        console.log(`Progress bar updated to: ${progressPercent}%`);
+    } else {
+        console.error('Progress bar element not found or progress undefined');
+    }
+    
+    // Update status text
+    const statusElement = document.getElementById('status');
+    if (statusElement) {
+        if (progress.progress >= 100) {
+            statusElement.textContent = 'Download Complete';
+        } else {
+            const progressText = `Downloading... ${(progress.progress || 0).toFixed(1)}%`;
+            statusElement.textContent = progressText;
+            console.log('Status updated to:', progressText);
+        }
+    } else {
+        console.error('Status element not found!');
+    }
+    
+    // Update download speed
+    const downloadSpeedElement = document.getElementById('downloadSpeed');
+    if (downloadSpeedElement) {
+        const speedBytes = progress.downloadSpeed || 0;
+        const speedMBps = (speedBytes / (1024 * 1024)).toFixed(2);
+        downloadSpeedElement.textContent = `${speedMBps} MB/s`;
+        console.log(`Download speed updated to: ${speedMBps} MB/s (${speedBytes} bytes/s)`);
+    } else {
+        console.error('Download speed element not found!');
+    }
+    
+    // Update downloaded amount
+    const downloadedElement = document.getElementById('downloaded');
+    if (downloadedElement) {
+        const downloadedBytes = progress.downloaded || 0;
+        const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(1);
+        downloadedElement.textContent = `${downloadedMB} MB`;
+        console.log(`Downloaded amount updated to: ${downloadedMB} MB (${downloadedBytes} bytes)`);
+    } else {
+        console.error('Downloaded element not found!');
+    }
+    
+    // Update total size (if available)
+    const totalSizeElement = document.getElementById('totalSize');
+    if (totalSizeElement) {
+        const totalBytes = progress.totalSize || 0;
+        const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
+        totalSizeElement.textContent = `${totalMB} MB`;
+        console.log(`Total size updated to: ${totalMB} MB (${totalBytes} bytes)`);
+    } else {
+        console.error('Total size element not found!');
+    }
+    
+    // Update peers info if available
+    if (progress.numPeers !== undefined && statusElement && progress.progress < 100) {
+        const peersInfo = `${progress.numPeers} peers`;
+        const statusWithPeers = `Downloading... ${(progress.progress || 0).toFixed(1)}% (${peersInfo})`;
+        statusElement.textContent = statusWithPeers;
+        console.log('Status with peers updated to:', statusWithPeers);
+    }
+    
+    console.log('=== END PROGRESS UPDATE ===');
+}
 
 function initElements() {
     // Main app elements
@@ -148,49 +243,8 @@ function setupEventListeners() {
 }
 
 function setupIpcHandlers() {
-    // Set up IPC progress handler
-    window.api.receive('download-progress', (data) => {
-        const { progressContainer, progressBar, statusText, downloadSpeed, downloaded, totalSize, 
-                videoPlaceholder, videoPlayer } = elements;
-                
-        if (!progressContainer || !progressBar || !statusText || !downloadSpeed || !downloaded || !totalSize) {
-            console.error('Progress elements not found');
-            return;
-        }
-        
-        progressContainer.classList.remove('hidden');
-        const progress = Math.max(0, Math.min(100, data.progress || 0));
-        progressBar.style.width = `${progress}%`;
-        statusText.textContent = data.status || 'Downloading...';
-        downloadSpeed.textContent = formatBytes(data.downloadSpeed || 0) + '/s';
-        downloaded.textContent = formatBytes(data.downloaded || 0);
-        totalSize.textContent = formatBytes(data.total || 0);
-        
-        // If we have a stream URL, update the video player
-        if (data.streamUrl && videoPlayer && videoPlaceholder) {
-            // Hide placeholder and show video player
-            videoPlaceholder.classList.add('hidden');
-            videoPlayer.classList.remove('hidden');
-            
-            // Set video source
-            videoPlayer.src = data.streamUrl;
-            videoPlayer.load();
-            
-            // Auto-play when enough data is buffered
-            const playPromise = videoPlayer.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.error('Auto-play failed:', error);
-                    // Show a play button for the user to start playback manually
-                    const playButton = document.createElement('button');
-                    playButton.className = 'bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded';
-                    playButton.textContent = 'Play Video';
-                    playButton.onclick = () => videoPlayer.play().then(() => playButton.remove());
-                    videoPlayer.parentNode.insertBefore(playButton, videoPlayer.nextSibling);
-                });
-            }
-        }
-    });
+    // IPC handlers are now set up globally above
+    // This function can be used for other setup if needed
 }
 
 // Helper function to format bytes to human readable string
@@ -443,8 +497,9 @@ function displayResults(results) {
     }
 }
 
-function startStream(magnet, name) {
+async function startStream(magnet, name) {
     console.log('Starting stream for:', name);
+    console.log('Magnet URI:', magnet);
     
     // Show loading state
     const statusElement = document.getElementById('status-text');
@@ -452,10 +507,20 @@ function startStream(magnet, name) {
         statusElement.textContent = 'Starting stream...';
     }
     
-    // Show the progress container
+    // Show the progress container immediately
     const progressContainer = document.getElementById('progress-container');
     if (progressContainer) {
         progressContainer.style.display = 'block';
+        progressContainer.classList.remove('hidden');
+        console.log('Progress container shown');
+    } else {
+        console.error('Progress container not found!');
+    }
+    
+    // Initialize progress display
+    const statusEl = document.getElementById('status');
+    if (statusEl) {
+        statusEl.textContent = 'Connecting to peers...';
     }
     
     // Hide any existing video
@@ -472,7 +537,33 @@ function startStream(magnet, name) {
         videoPlaceholder.textContent = 'Loading stream...';
     }
     
-    // Send request to start the stream
-    window.api.send('start-stream', { magnet, name });
+    try {
+        // Send request to start the stream using invoke for proper response handling
+        console.log('Invoking start-stream with magnet:', magnet);
+        const result = await window.api.invoke('start-stream', magnet);
+        console.log('Stream started successfully:', result);
+        
+        // Update status
+        if (statusElement) {
+            statusElement.textContent = 'Stream started - VLC should be opening...';
+        }
+    } catch (error) {
+        console.error('Error starting stream:', error);
+        
+        // Show error state
+        if (statusElement) {
+            statusElement.textContent = `Error: ${error.message}`;
+        }
+        
+        // Hide progress container on error
+        if (progressContainer) {
+            progressContainer.style.display = 'none';
+        }
+        
+        // Show error in video placeholder
+        if (videoPlaceholder) {
+            videoPlaceholder.textContent = `Failed to start stream: ${error.message}`;
+        }
+    }
 }
 

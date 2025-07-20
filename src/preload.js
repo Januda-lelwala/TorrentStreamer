@@ -6,8 +6,6 @@ contextBridge.exposeInMainWorld('api', {
   send: (channel, data) => {
     const validChannels = [
       'search-torrents',
-      'start-stream',
-      'stop-stream',
       'get-settings',
       'save-settings',
       'open-directory-dialog',
@@ -17,6 +15,15 @@ contextBridge.exposeInMainWorld('api', {
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
+    }
+  },
+  invoke: (channel, data) => {
+    const validChannels = [
+      'start-stream',
+      'stop-stream'
+    ];
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, data);
     }
   },
   receive: (channel, func) => {

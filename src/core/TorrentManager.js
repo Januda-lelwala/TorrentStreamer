@@ -238,52 +238,154 @@ class TorrentManager {
                 clearInterval(this.progressInterval);
               }
               
-              this.progressInterval = setInterval(() => {
+              // Send initial progress immediately
+              const sendProgress = () => {
                 if (!this.currentTorrent || !this.mainWindow || this.mainWindow.isDestroyed()) {
-                  clearInterval(this.progressInterval);
-                  this.progressInterval = null;
                   return;
                 }
                 
                 const progress = {
                   progress: Math.round(this.currentTorrent.progress * 10000) / 100,
-                  downloadSpeed: this.currentTorrent.downloadSpeed,
-                  uploadSpeed: this.currentTorrent.uploadSpeed,
-                  downloaded: this.currentTorrent.downloaded,
-                  uploaded: this.currentTorrent.uploaded,
-                  ratio: this.currentTorrent.ratio,
-                  timeRemaining: this.currentTorrent.done ? 0 : this.currentTorrent.timeRemaining,
-                  numPeers: this.currentTorrent.numPeers,
-                  path: this.currentTorrent.path
+                  downloadSpeed: this.currentTorrent.downloadSpeed || 0,
+                  uploadSpeed: this.currentTorrent.uploadSpeed || 0,
+                  downloaded: this.currentTorrent.downloaded || 0,
+                  uploaded: this.currentTorrent.uploaded || 0,
+                  totalSize: this.currentTorrent.length || 0,
+                  ratio: this.currentTorrent.ratio || 0,
+                  timeRemaining: this.currentTorrent.done ? 0 : (this.currentTorrent.timeRemaining || 0),
+                  numPeers: this.currentTorrent.numPeers || 0,
+                  path: this.currentTorrent.path || '',
+                  name: this.currentTorrent.name || '',
+                  done: this.currentTorrent.done || false
                 };
                 
+                console.log('[TorrentManager] Sending progress update:', {
+                  progress: progress.progress,
+                  downloadSpeed: progress.downloadSpeed,
+                  downloaded: progress.downloaded,
+                  totalSize: progress.totalSize,
+                  numPeers: progress.numPeers
+                });
+                
                 this.mainWindow.webContents.send('download-progress', progress);
+              };
+              
+              // Send initial progress
+              sendProgress();
+              
+              // Set up interval for regular updates
+              this.progressInterval = setInterval(() => {
+                sendProgress();
               }, 1000);
             };
             
+            // Call updateProgress immediately to show initial state
             updateProgress();
+            console.log('[TorrentManager] Initial progress update sent');
             
-            // Start VLC after file is selected
-            try {
-              const vlcArgs = [
-                '--fullscreen',
-                '--no-video-title-show',
-                '--no-osd',
-                selectedFilePath
-              ];
-              
-              this.vlcProcess = spawn('vlc', vlcArgs);
-              console.log('[TorrentManager] VLC started successfully');
-            } catch (error) {
-              console.error('[TorrentManager] Failed to start VLC:', error);
-              this.mainWindow.webContents.send('stream-error', 'Failed to start VLC player');
-              return rejectOnce(error);
-            }
+            // Set up VLC launch function
+            const launchVLC = () => {
+              try {
+                const vlcArgs = [
+                  '--fullscreen',
+                  '--no-video-title-show',
+                  '--no-osd',
+                  selectedFilePath
+                ];
+                
+                // Try different VLC paths based on the operating system
+                let vlcPath;
+                if (process.platform === 'darwin') {
+                  // macOS paths
+                  vlcPath = '/Applications/VLC.app/Contents/MacOS/VLC';
+                } else if (process.platform === 'win32') {
+                  // Windows paths
+                  vlcPath = 'vlc'; // Assuming VLC is in PATH on Windows
+                } else {
+                  // Linux paths
+                  vlcPath = 'vlc'; // Assuming VLC is in PATH on Linux
+                }
+                
+                // Check if VLC exists at the specified path (for macOS)
+                if (process.platform === 'darwin' && !fs.existsSync(vlcPath)) {
+                  throw new Error('VLC not found at /Applications/VLC.app/Contents/MacOS/VLC. Please install VLC Media Player.');
+                }
+                
+                console.log('[TorrentManager] Launching VLC with file:', selectedFilePath);
+                this.vlcProcess = spawn(vlcPath, vlcArgs);
+                console.log('[TorrentManager] VLC started successfully with path:', vlcPath);
+                
+                // Handle VLC process errors
+                this.vlcProcess.on('error', (error) => {
+                  console.error('[TorrentManager] VLC process error:', error);
+                  let errorMessage = 'Failed to start VLC player';
+                  if (error.code === 'ENOENT') {
+                    errorMessage = 'VLC Media Player not found. Please install VLC from https://www.videolan.org/vlc/';
+                  }
+                  this.mainWindow.webContents.send('stream-error', errorMessage);
+                });
+                
+                // Handle VLC process exit
+                this.vlcProcess.on('exit', (code, signal) => {
+                  console.log(`[TorrentManager] VLC process exited with code ${code} and signal ${signal}`);
+                  if (code !== 0 && code !== null) {
+                    const errorMessage = `VLC exited unexpectedly with code ${code}`;
+                    this.mainWindow.webContents.send('stream-error', errorMessage);
+                  }
+                });
+                
+              } catch (error) {
+                console.error('[TorrentManager] Failed to start VLC:', error);
+                let errorMessage = 'Failed to start VLC player';
+                if (error.message.includes('VLC not found')) {
+                  errorMessage = error.message;
+                }
+                this.mainWindow.webContents.send('stream-error', errorMessage);
+                throw error;
+              }
+            };
+            
+            // Wait for some data to be downloaded before launching VLC
+            let vlcLaunched = false;
+            const minDownloadSize = 1024 * 1024; // 1MB minimum before launching VLC
+            
+            // Set up a fallback timer to launch VLC after 10 seconds even if file doesn't exist
+            const fallbackTimer = setTimeout(() => {
+              if (!vlcLaunched) {
+                console.log('[TorrentManager] Fallback: Launching VLC after timeout...');
+                vlcLaunched = true;
+                try {
+                  launchVLC();
+                  this.mainWindow.webContents.send('stream-started', {
+                    name: torrent.name,
+                    file: file.name,
+                    size: file.length
+                  });
+                } catch (error) {
+                  console.error('[TorrentManager] Fallback VLC launch failed:', error);
+                }
+              }
+            }, 10000); // 10 second fallback
             
             // Handle download progress
             torrent.on('download', () => {
               try {
                 updateProgress();
+                
+                // Launch VLC once we have enough data downloaded OR file exists
+                if (!vlcLaunched && (torrent.downloaded > minDownloadSize || fs.existsSync(selectedFilePath))) {
+                  console.log(`[TorrentManager] Downloaded ${torrent.downloaded} bytes, file exists: ${fs.existsSync(selectedFilePath)}, launching VLC...`);
+                  vlcLaunched = true;
+                  clearTimeout(fallbackTimer); // Clear the fallback timer
+                  launchVLC();
+                  
+                  // Notify that streaming has started
+                  this.mainWindow.webContents.send('stream-started', {
+                    name: torrent.name,
+                    file: file.name,
+                    size: file.length
+                  });
+                }
               } catch (error) {
                 console.error('[TorrentManager] Error in download handler:', error);
                 this.mainWindow.webContents.send('stream-error', `Download error: ${error.message}`);
