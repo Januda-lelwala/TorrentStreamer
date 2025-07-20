@@ -10,8 +10,31 @@
 <body class="bg-gray-900 text-white min-h-screen">
     <div class="container mx-auto px-4 py-8">
         <header class="mb-8">
-            <h1 class="text-3xl font-bold text-center mb-2">Torrent Streamer</h1>
-            <div class="flex gap-4">
+            <h1 class="text-3xl font-bold text-center mb-6">Torrent Streamer</h1>
+            
+            <!-- Tab Navigation -->
+            <div class="flex justify-center mb-6">
+                <div class="bg-gray-800 rounded-lg p-1 flex">
+                    <button 
+                        id="streamingTab" 
+                        class="tab-button active px-6 py-2 rounded-md font-medium transition-colors bg-blue-600 text-white"
+                    >
+                        Streaming
+                    </button>
+                    <button 
+                        id="settingsTab" 
+                        class="tab-button px-6 py-2 rounded-md font-medium transition-colors text-gray-400 hover:text-white"
+                    >
+                        Settings
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tab Content -->
+        <div id="streamingContent" class="tab-content">
+            <!-- Search Bar -->
+            <div class="flex gap-4 mb-6">
                 <input 
                     type="text" 
                     id="searchInput" 
@@ -25,9 +48,8 @@
                     Search
                 </button>
             </div>
-        </header>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="md:col-span-2">
                 <div id="videoContainer" class="bg-black rounded-lg overflow-hidden aspect-video mb-6">
                     <video 
@@ -94,6 +116,130 @@
                     <h2 class="text-xl font-semibold mb-4">Search Results</h2>
                     <div id="resultsContainer" class="space-y-4 overflow-y-auto max-h-[600px] pr-2">
                         <p class="text-gray-500 text-center py-8">Search for torrents to see results</p>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+        
+        <!-- Settings Tab Content -->
+        <div id="settingsContent" class="tab-content hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-2xl font-semibold mb-6">Settings</h2>
+                    
+                    <!-- General Settings -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-medium mb-4 text-blue-400">General</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="text-white font-medium">Download Directory</label>
+                                    <p class="text-gray-400 text-sm">Choose where torrents are downloaded</p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        id="downloadPath" 
+                                        placeholder="/tmp/torrents" 
+                                        class="px-3 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        readonly
+                                    >
+                                    <button 
+                                        id="browseBtn" 
+                                        class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md font-medium transition-colors"
+                                    >
+                                        Browse
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Media Player Settings -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-medium mb-4 text-blue-400">Media Player</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="text-white font-medium">Minimum Download Size</label>
+                                    <p class="text-gray-400 text-sm">Amount of data to download before enabling media player launch</p>
+                                </div>
+                                <select 
+                                    id="minDownloadSize" 
+                                    class="px-3 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="512">512 KB</option>
+                                    <option value="1024" selected>1 MB</option>
+                                    <option value="2048">2 MB</option>
+                                    <option value="5120">5 MB</option>
+                                    <option value="10240">10 MB</option>
+                                </select>
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="text-white font-medium">VLC Path</label>
+                                    <p class="text-gray-400 text-sm">Custom path to VLC media player (leave empty for auto-detection)</p>
+                                </div>
+                                <input 
+                                    type="text" 
+                                    id="vlcPath" 
+                                    placeholder="/Applications/VLC.app/Contents/MacOS/VLC" 
+                                    class="px-3 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-80"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Torrent Settings -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-medium mb-4 text-blue-400">Torrent</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="text-white font-medium">Max Download Speed</label>
+                                    <p class="text-gray-400 text-sm">Maximum download speed (0 = unlimited)</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input 
+                                        type="number" 
+                                        id="maxDownloadSpeed" 
+                                        placeholder="0" 
+                                        min="0" 
+                                        class="px-3 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-20"
+                                    >
+                                    <span class="text-gray-400">MB/s</span>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="text-white font-medium">Max Upload Speed</label>
+                                    <p class="text-gray-400 text-sm">Maximum upload speed (0 = unlimited)</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input 
+                                        type="number" 
+                                        id="maxUploadSpeed" 
+                                        placeholder="0" 
+                                        min="0" 
+                                        class="px-3 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-20"
+                                    >
+                                    <span class="text-gray-400">MB/s</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Save Button -->
+                    <div class="flex justify-end">
+                        <button 
+                            id="saveSettingsBtn" 
+                            class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-medium transition-colors"
+                        >
+                            Save Settings
+                        </button>
                     </div>
                 </div>
             </div>

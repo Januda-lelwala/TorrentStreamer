@@ -670,3 +670,123 @@ async function startStream(magnet, name) {
     }
 }
 
+// Tab switching functionality
+function initTabs() {
+    const streamingTab = document.getElementById('streamingTab');
+    const settingsTab = document.getElementById('settingsTab');
+    const streamingContent = document.getElementById('streamingContent');
+    const settingsContent = document.getElementById('settingsContent');
+    
+    if (!streamingTab || !settingsTab || !streamingContent || !settingsContent) {
+        console.error('Tab elements not found');
+        return;
+    }
+    
+    // Function to switch tabs
+    function switchTab(activeTab, activeContent, inactiveTab, inactiveContent) {
+        // Update tab buttons
+        activeTab.className = 'tab-button active px-6 py-2 rounded-md font-medium transition-colors bg-blue-600 text-white';
+        inactiveTab.className = 'tab-button px-6 py-2 rounded-md font-medium transition-colors text-gray-400 hover:text-white';
+        
+        // Update content visibility
+        activeContent.classList.remove('hidden');
+        inactiveContent.classList.add('hidden');
+    }
+    
+    // Streaming tab click handler
+    streamingTab.addEventListener('click', () => {
+        switchTab(streamingTab, streamingContent, settingsTab, settingsContent);
+    });
+    
+    // Settings tab click handler
+    settingsTab.addEventListener('click', () => {
+        switchTab(settingsTab, settingsContent, streamingTab, streamingContent);
+    });
+}
+
+// Settings functionality
+function initSettings() {
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const browseBtn = document.getElementById('browseBtn');
+    
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', saveSettings);
+    }
+    
+    if (browseBtn) {
+        browseBtn.addEventListener('click', browseDirectory);
+    }
+    
+    // Load existing settings
+    loadSettings();
+}
+
+function loadSettings() {
+    // Load settings from storage or use defaults
+    const settings = {
+        downloadPath: '/tmp/torrent-streamer',
+        minDownloadSize: 1024,
+        vlcPath: '/Applications/VLC.app/Contents/MacOS/VLC',
+        maxDownloadSpeed: 0,
+        maxUploadSpeed: 0
+    };
+    
+    // Apply settings to UI
+    const downloadPathInput = document.getElementById('downloadPath');
+    const minDownloadSizeSelect = document.getElementById('minDownloadSize');
+    const vlcPathInput = document.getElementById('vlcPath');
+    const maxDownloadSpeedInput = document.getElementById('maxDownloadSpeed');
+    const maxUploadSpeedInput = document.getElementById('maxUploadSpeed');
+    
+    if (downloadPathInput) downloadPathInput.value = settings.downloadPath;
+    if (minDownloadSizeSelect) minDownloadSizeSelect.value = settings.minDownloadSize;
+    if (vlcPathInput) vlcPathInput.value = settings.vlcPath;
+    if (maxDownloadSpeedInput) maxDownloadSpeedInput.value = settings.maxDownloadSpeed;
+    if (maxUploadSpeedInput) maxUploadSpeedInput.value = settings.maxUploadSpeed;
+}
+
+function saveSettings() {
+    const downloadPath = document.getElementById('downloadPath')?.value || '/tmp/torrents';
+    const minDownloadSize = parseInt(document.getElementById('minDownloadSize')?.value) || 1024;
+    const vlcPath = document.getElementById('vlcPath')?.value || '';
+    const maxDownloadSpeed = parseInt(document.getElementById('maxDownloadSpeed')?.value) || 0;
+    const maxUploadSpeed = parseInt(document.getElementById('maxUploadSpeed')?.value) || 0;
+    
+    const settings = {
+        downloadPath,
+        minDownloadSize,
+        vlcPath,
+        maxDownloadSpeed,
+        maxUploadSpeed
+    };
+    
+    // Save settings (for now just log, later we'll implement actual saving)
+    console.log('Settings saved:', settings);
+    
+    // Show success message
+    const saveBtn = document.getElementById('saveSettingsBtn');
+    if (saveBtn) {
+        const originalText = saveBtn.textContent;
+        saveBtn.textContent = 'Saved!';
+        saveBtn.className = 'bg-green-700 px-6 py-2 rounded-lg font-medium transition-colors';
+        
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.className = 'bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-medium transition-colors';
+        }, 2000);
+    }
+}
+
+function browseDirectory() {
+    // For now just show a placeholder message
+    // Later we'll implement actual directory browsing
+    console.log('Browse directory clicked - to be implemented');
+    alert('Directory browsing will be implemented in a future update.');
+}
+
+// Initialize tabs and settings when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    initTabs();
+    initSettings();
+});
+
