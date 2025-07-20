@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Torrent Streamer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-center mb-2">Torrent Streamer</h1>
+            <div class="flex gap-4">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Search for torrents..." 
+                    class="flex-1 p-3 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                <button 
+                    id="searchBtn" 
+                    class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-medium transition-colors"
+                >
+                    Search
+                </button>
+                <button 
+                    id="testSearchBtn" 
+                    class="bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg font-medium transition-colors text-sm"
+                    title="Test search with 'ubuntu'"
+                >
+                    Test Search
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="md:col-span-2">
+                <div id="videoContainer" class="bg-black rounded-lg overflow-hidden aspect-video mb-6">
+                    <video 
+                        id="videoPlayer" 
+                        controls 
+                        class="w-full h-full"
+                        style="display: none;"
+                    ></video>
+                    <div id="videoPlaceholder" class="flex items-center justify-center h-full text-gray-500">
+                        <p>No video selected</p>
+                    </div>
+                </div>
+                
+                <div id="progressContainer" class="hidden bg-gray-800 rounded-lg p-4 mb-6">
+                    <div class="flex justify-between mb-2">
+                        <span id="status">Connecting...</span>
+                        <span id="downloadSpeed">0 MB/s</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2.5">
+                        <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between mt-2 text-sm text-gray-400">
+                        <span id="downloaded">0 MB</span>
+                        <span id="totalSize">0 MB</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="bg-gray-800 rounded-lg p-4 h-full">
+                    <h2 class="text-xl font-semibold mb-4">Search Results</h2>
+                    <div id="resultsContainer" class="space-y-4 overflow-y-auto max-h-[600px] pr-2">
+                        <p class="text-gray-500 text-center py-8">Search for torrents to see results</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
