@@ -1,6 +1,12 @@
 // This file will be loaded in the renderer process
 // The preload script exposes a safe API to the window
 
+// Pagination state
+let currentSearchQuery = '';
+let currentPage = 1;
+let totalPages = 0;
+let totalResults = 0;
+
 // DOM Elements
 const elements = {
     searchInput: null,
@@ -723,30 +729,69 @@ function handleSearch() {
     const query = elements.searchInput.value.trim();
     if (!query) return;
     
+    // Reset pagination for new search
+    currentSearchQuery = query;
+    currentPage = 1;
+    performSearch(query, 1);
+}
+
+function performSearch(query, page = 1) {
     // Show loading state
     elements.searchBtn.disabled = true;
     elements.searchBtn.textContent = 'Searching...';
     
-    // Clear previous results
-    elements.resultsContainer.innerHTML = '';
+    // Hide pagination while loading
+    const paginationContainer = document.getElementById('paginationContainer');
+    if (paginationContainer) {
+        paginationContainer.classList.add('hidden');
+    }
     
-    // Send search request to main process
-    window.api.send('search-torrents', query);
-    
-    // Set up a listener for search results
-    window.api.receive('search-results', (results) => {
-        displayResults(results);
-        
-        // Reset button state
-        elements.searchBtn.disabled = false;
-        elements.searchBtn.textContent = 'Search';
-    });
+    // Send search request to main process with pagination
+    window.api.send('search-torrents', { query, page });
 }
 
-function displayResults(results) {
+function displayResults(data) {
     const { resultsContainer } = elements;
+    
+    // Reset button state
+    elements.searchBtn.disabled = false;
+    elements.searchBtn.textContent = 'Search';
+    
+    // Handle both old format (array) and new format (object with pagination)
+    let results, page, totalPages, totalResults;
+    if (Array.isArray(data)) {
+        // Old format - for backward compatibility
+        results = data;
+        page = 1;
+        totalPages = 1;
+        totalResults = data.length;
+    } else {
+        // New paginated format
+        results = data.results || [];
+        page = data.page || 1;
+        totalPages = data.totalPages || 0;
+        totalResults = data.totalResults || 0;
+    }
+    
+    // Update pagination state
+    currentPage = page;
+    window.totalPages = totalPages;
+    window.totalResults = totalResults;
+    
     // Clear previous results
     resultsContainer.innerHTML = '';
+    
+    // Update results info
+    const resultsInfo = document.getElementById('resultsInfo');
+    const resultsCount = document.getElementById('resultsCount');
+    if (resultsInfo && resultsCount) {
+        if (totalResults > 0) {
+            resultsCount.textContent = `${totalResults} results found`;
+            resultsInfo.classList.remove('hidden');
+        } else {
+            resultsInfo.classList.add('hidden');
+        }
+    }
     
     if (!results || !Array.isArray(results) || results.length === 0) {
         resultsContainer.innerHTML = `
@@ -754,6 +799,11 @@ function displayResults(results) {
                 <p>No results found. Try a different search term.</p>
             </div>
         `;
+        // Hide pagination
+        const paginationContainer = document.getElementById('paginationContainer');
+        if (paginationContainer) {
+            paginationContainer.classList.add('hidden');
+        }
         return;
     }
 
@@ -796,6 +846,9 @@ function displayResults(results) {
             const result = validResults[index];
             item.addEventListener('click', () => startStream(result.magnet, result.name));
         });
+        
+        // Setup pagination controls
+        setupPagination(page, totalPages);
 
     } catch (error) {
         console.error('Error displaying results:', error);
@@ -805,7 +858,110 @@ function displayResults(results) {
                 <p class="text-xs mt-2">${error.message}</p>
             </div>
         `;
+        // Hide pagination on error
+        const paginationContainer = document.getElementById('paginationContainer');
+        if (paginationContainer) {
+            paginationContainer.classList.add('hidden');
+        }
     }
+}
+
+// Pagination functions
+function setupPagination(currentPage, totalPages) {
+    const paginationContainer = document.getElementById('paginationContainer');
+    const prevButton = document.getElementById('prevPage');
+    const nextButton = document.getElementById('nextPage');
+    const pageNumbers = document.getElementById('pageNumbers');
+    
+    if (!paginationContainer || !prevButton || !nextButton || !pageNumbers) {
+        return;
+    }
+    
+    // Show pagination if there are multiple pages
+    if (totalPages > 1) {
+        paginationContainer.classList.remove('hidden');
+        
+        // Update previous button
+        prevButton.disabled = currentPage === 1;
+        prevButton.onclick = () => {
+            if (currentPage > 1) {
+                performSearch(currentSearchQuery, currentPage - 1);
+            }
+        };
+        
+        // Update next button
+        nextButton.disabled = currentPage === totalPages;
+        nextButton.onclick = () => {
+            if (currentPage < totalPages) {
+                performSearch(currentSearchQuery, currentPage + 1);
+            }
+        };
+        
+        // Generate page numbers
+        generatePageNumbers(currentPage, totalPages);
+    } else {
+        paginationContainer.classList.add('hidden');
+    }
+}
+
+function generatePageNumbers(currentPage, totalPages) {
+    const pageNumbers = document.getElementById('pageNumbers');
+    if (!pageNumbers) return;
+    
+    pageNumbers.innerHTML = '';
+    
+    // Calculate which pages to show
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    
+    // Adjust start page if we're near the end
+    if (endPage - startPage < 4) {
+        startPage = Math.max(1, endPage - 4);
+    }
+    
+    // Add first page and ellipsis if needed
+    if (startPage > 1) {
+        addPageButton(1, currentPage);
+        if (startPage > 2) {
+            pageNumbers.appendChild(createEllipsis());
+        }
+    }
+    
+    // Add page numbers
+    for (let i = startPage; i <= endPage; i++) {
+        addPageButton(i, currentPage);
+    }
+    
+    // Add ellipsis and last page if needed
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            pageNumbers.appendChild(createEllipsis());
+        }
+        addPageButton(totalPages, currentPage);
+    }
+}
+
+function addPageButton(pageNum, currentPage) {
+    const pageNumbers = document.getElementById('pageNumbers');
+    const button = document.createElement('button');
+    
+    button.textContent = pageNum;
+    button.className = pageNum === currentPage 
+        ? 'px-3 py-2 bg-blue-600 text-white rounded-md font-medium'
+        : 'px-3 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors';
+    
+    if (pageNum !== currentPage) {
+        button.onclick = () => performSearch(currentSearchQuery, pageNum);
+    }
+    
+    pageNumbers.appendChild(button);
+}
+
+function createEllipsis() {
+    const span = document.createElement('span');
+    span.textContent = '...';
+    span.className = 'px-2 py-2 text-gray-400';
+    return span;
 }
 
 async function startStream(magnet, name) {

@@ -66,16 +66,20 @@ app.on('activate', () => {
 
 // IPC Handlers
 console.log('[Main] Registering IPC handlers...');
-ipcMain.on('search-torrents', async (event, query) => {
-  console.log(`[Main] Received search request for: "${query}"`);
+ipcMain.on('search-torrents', async (event, searchData) => {
+  const { query, page = 1 } = typeof searchData === 'string' ? { query: searchData, page: 1 } : searchData;
+  console.log(`[Main] Received search request for: "${query}", page: ${page}`);
   if (!query || typeof query !== 'string' || query.trim().length < 2) {
     console.log('[Main] Invalid search query');
-    event.reply('search-results', []);
+    event.reply('search-results', { results: [], page: 1, totalPages: 0, query });
     return;
   }
   try {
     console.log('[Main] Starting torrent-search-api search...');
-    const results = await torrentSearch.search(query, 'All', 20);
+    // Fetch more results to support pagination (20 results per page, fetch up to 100 total)
+    const resultsPerPage = 20;
+    const maxResults = Math.min(100, page * resultsPerPage + 40); // Fetch extra for future pages
+    const results = await torrentSearch.search(query, 'All', maxResults);
     // Map and fetch magnet links for each result
     const resultsWithMagnets = await Promise.all(results.map(async (result) => {
       try {
@@ -93,15 +97,28 @@ ipcMain.on('search-torrents', async (event, query) => {
     }));
     // Filter out any that failed to get a magnet
     const safeResults = resultsWithMagnets.filter(r => r && r.magnet && typeof r.magnet === 'string' && r.magnet.startsWith('magnet:'));
-    console.log(`[Main] Search completed, found ${safeResults.length} valid results`);
-    event.reply('search-results', safeResults);
+    
+    // Paginate results
+    const startIndex = (page - 1) * resultsPerPage;
+    const endIndex = startIndex + resultsPerPage;
+    const paginatedResults = safeResults.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(safeResults.length / resultsPerPage);
+    
+    console.log(`[Main] Search completed, found ${safeResults.length} total results, returning page ${page}/${totalPages} with ${paginatedResults.length} results`);
+    event.reply('search-results', {
+      results: paginatedResults,
+      page,
+      totalPages,
+      totalResults: safeResults.length,
+      query
+    });
   } catch (error) {
     console.error('[Main] Error in torrent-search-api:', {
       message: error.message,
       stack: error.stack,
       query: query
     });
-    event.reply('search-results', []);
+    event.reply('search-results', { results: [], page: 1, totalPages: 0, totalResults: 0, query });
   }
 });
 
