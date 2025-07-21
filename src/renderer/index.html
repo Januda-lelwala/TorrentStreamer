@@ -9,30 +9,24 @@
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
     <div class="container mx-auto px-4 py-8">
-        <header class="mb-8">
+        <header class="mb-8 relative">
             <h1 class="text-3xl font-bold text-center mb-6">Torrent Streamer</h1>
             
-            <!-- Tab Navigation -->
-            <div class="flex justify-center mb-6">
-                <div class="bg-gray-800 rounded-lg p-1 flex">
-                    <button 
-                        id="streamingTab" 
-                        class="tab-button active px-6 py-2 rounded-md font-medium transition-colors bg-blue-600 text-white"
-                    >
-                        Streaming
-                    </button>
-                    <button 
-                        id="settingsTab" 
-                        class="tab-button px-6 py-2 rounded-md font-medium transition-colors text-gray-400 hover:text-white"
-                    >
-                        Settings
-                    </button>
-                </div>
-            </div>
+            <!-- Settings Icon -->
+            <button 
+                id="settingsIcon" 
+                class="absolute top-0 right-0 p-2 text-gray-400 hover:text-white transition-colors"
+                title="Settings"
+            >
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+            </button>
         </header>
 
-        <!-- Tab Content -->
-        <div id="streamingContent" class="tab-content">
+        <!-- Main Content -->
+        <div id="streamingContent">
             <!-- Search Bar -->
             <div class="flex gap-4 mb-6">
                 <input 
@@ -60,11 +54,22 @@
             </div>
         </div>
         
-        <!-- Settings Tab Content -->
-        <div id="settingsContent" class="tab-content hidden">
-            <div class="max-w-4xl mx-auto">
-                <div class="bg-gray-800 rounded-lg p-6">
-                    <h2 class="text-2xl font-semibold mb-6">Settings</h2>
+        <!-- Settings Popup Modal -->
+        <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center" style="z-index: 9999 !important;">
+            <div class="bg-gray-800 rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <!-- Modal Header -->
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-semibold">Settings</h2>
+                    <button id="closeSettingsModal" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Settings Content -->
+                <div id="settingsContent">
+
                     
                     <!-- General Settings -->
                     <div class="mb-8">

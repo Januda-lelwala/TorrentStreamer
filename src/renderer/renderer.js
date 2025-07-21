@@ -871,37 +871,41 @@ async function startStream(magnet, name) {
     }
 }
 
-// Tab switching functionality
-function initTabs() {
-    const streamingTab = document.getElementById('streamingTab');
-    const settingsTab = document.getElementById('settingsTab');
-    const streamingContent = document.getElementById('streamingContent');
-    const settingsContent = document.getElementById('settingsContent');
+// Settings modal functionality
+function initSettingsModal() {
+    const settingsIcon = document.getElementById('settingsIcon');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettingsModal = document.getElementById('closeSettingsModal');
     
-    if (!streamingTab || !settingsTab || !streamingContent || !settingsContent) {
-        console.error('Tab elements not found');
+    if (!settingsIcon || !settingsModal || !closeSettingsModal) {
+        console.error('Settings modal elements not found');
         return;
     }
     
-    // Function to switch tabs
-    function switchTab(activeTab, activeContent, inactiveTab, inactiveContent) {
-        // Update tab buttons
-        activeTab.className = 'tab-button active px-6 py-2 rounded-md font-medium transition-colors bg-blue-600 text-white';
-        inactiveTab.className = 'tab-button px-6 py-2 rounded-md font-medium transition-colors text-gray-400 hover:text-white';
-        
-        // Update content visibility
-        activeContent.classList.remove('hidden');
-        inactiveContent.classList.add('hidden');
-    }
-    
-    // Streaming tab click handler
-    streamingTab.addEventListener('click', () => {
-        switchTab(streamingTab, streamingContent, settingsTab, settingsContent);
+    // Open settings modal
+    settingsIcon.addEventListener('click', () => {
+        settingsModal.classList.remove('hidden');
+        // Load current settings when opening
+        loadSettings();
     });
     
-    // Settings tab click handler
-    settingsTab.addEventListener('click', () => {
-        switchTab(settingsTab, settingsContent, streamingTab, streamingContent);
+    // Close settings modal
+    closeSettingsModal.addEventListener('click', () => {
+        settingsModal.classList.add('hidden');
+    });
+    
+    // Close modal when clicking outside
+    settingsModal.addEventListener('click', (e) => {
+        if (e.target === settingsModal) {
+            settingsModal.classList.add('hidden');
+        }
+    });
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !settingsModal.classList.contains('hidden')) {
+            settingsModal.classList.add('hidden');
+        }
     });
 }
 
@@ -985,9 +989,9 @@ function browseDirectory() {
     alert('Directory browsing will be implemented in a future update.');
 }
 
-// Initialize tabs and settings when DOM is loaded
+// Initialize settings modal and other components when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    initTabs();
+    initSettingsModal();
     initSettings();
     initBottomStatusBar();
     // Initialize status bar to idle state
