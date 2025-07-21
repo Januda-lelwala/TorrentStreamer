@@ -233,11 +233,12 @@ function updateProgressDisplay(progress) {
     showBottomStatusBar();
     
     const progressPercent = Math.min(progress.progress || 0, 100);
+    // Data is in bytes from backend, convert to MB for display
     const speedBytes = progress.downloadSpeed || 0;
     const speedMBps = (speedBytes / (1024 * 1024)).toFixed(2);
     const downloadedBytes = progress.downloaded || 0;
     const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(1);
-    const totalBytes = progress.totalSize || 0;
+    const totalBytes = progress.length || 0;
     const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
     const numPeers = progress.numPeers || 0;
     

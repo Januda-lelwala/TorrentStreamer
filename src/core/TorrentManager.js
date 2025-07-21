@@ -35,6 +35,8 @@ class TorrentManager {
     this.selectedFiles = [];
     this.progressInterval = null;
     this.mediaPlayerCheckInterval = null;
+    this.pausedTorrentInfo = null;
+    this.baselineDownloaded = 0; // Track previously downloaded bytes for resume
     this.initPromise = this.initialize();
   }
 
@@ -176,6 +178,9 @@ class TorrentManager {
       console.log('[DEBUG][TorrentManager] Starting stream for magnet:', magnetURI.substring(0, 50) + '...');
       
       await this.stopStream();
+      
+      // Reset baseline downloaded for new stream
+      this.baselineDownloaded = 0;
       
       return new Promise((resolve, reject) => {
         let resolved = false;
@@ -495,6 +500,8 @@ class TorrentManager {
       } finally {
         this.currentTorrent = null;
         this.isPaused = false; // Reset pause state
+        this.pausedTorrentInfo = null; // Clear paused torrent info
+        this.baselineDownloaded = 0; // Reset baseline downloaded
       }
     }
 
@@ -521,21 +528,43 @@ class TorrentManager {
     if (this.progressInterval) {
       clearInterval(this.progressInterval);
     }
+    
+    // Reset debug counter
+    this.progressDebugCount = 0;
 
     const sendProgress = () => {
       if (!this.currentTorrent) return;
       
+      // Calculate actual downloaded including baseline from previous sessions
+      const currentDownloaded = (this.currentTorrent.downloaded || 0);
+      const totalDownloaded = currentDownloaded + this.baselineDownloaded;
+      
       const progress = {
         progress: Math.round((this.currentTorrent.progress || 0) * 100),
-        downloadSpeed: Math.round((this.currentTorrent.downloadSpeed || 0) / 1024 / 1024 * 100) / 100,
-        uploadSpeed: Math.round((this.currentTorrent.uploadSpeed || 0) / 1024 / 1024 * 100) / 100,
-        downloaded: Math.round((this.currentTorrent.downloaded || 0) / 1024 / 1024 * 100) / 100,
-        length: Math.round((this.currentTorrent.length || 0) / 1024 / 1024 * 100) / 100,
+        downloadSpeed: this.currentTorrent.downloadSpeed || 0, // Keep in bytes/s
+        uploadSpeed: this.currentTorrent.uploadSpeed || 0, // Keep in bytes/s
+        downloaded: totalDownloaded, // Keep in bytes
+        length: this.currentTorrent.length || 0, // Keep in bytes
         numPeers: this.currentTorrent.numPeers || 0,
         ratio: Math.round((this.currentTorrent.ratio || 0) * 100) / 100,
         timeRemaining: this.currentTorrent.timeRemaining || 0,
-        name: this.currentTorrent.name || 'Unknown'
+        name: this.currentTorrent.name || 'Unknown',
+        baselineDownloaded: this.baselineDownloaded, // Keep in bytes
+        currentSessionDownloaded: currentDownloaded // Keep in bytes
       };
+      
+      // Debug logging for first few progress updates
+      if (this.progressDebugCount < 3) {
+        console.log('[DEBUG] Progress data being sent (all in bytes):', {
+          downloaded: progress.downloaded,
+          downloadedMB: Math.round(progress.downloaded / 1024 / 1024 * 100) / 100,
+          downloadSpeed: progress.downloadSpeed,
+          downloadSpeedMBps: Math.round(progress.downloadSpeed / 1024 / 1024 * 100) / 100,
+          baselineDownloaded: progress.baselineDownloaded,
+          currentSessionDownloaded: progress.currentSessionDownloaded
+        });
+        this.progressDebugCount = (this.progressDebugCount || 0) + 1;
+      }
       
       this.mainWindow.webContents.send('download-progress', progress);
     };
@@ -562,14 +591,22 @@ class TorrentManager {
       clearInterval(this.mediaPlayerCheckInterval);
     }
 
-    // Find the selected video file
+    // Find video files (check both selected and all video files as fallback)
     const supportedExts = ['.mp4', '.mkv', '.webm', '.avi', '.mov'];
-    const videoFiles = this.currentTorrent.files.filter(f => 
+    let videoFiles = this.currentTorrent.files.filter(f => 
       supportedExts.some(ext => f.name.toLowerCase().endsWith(ext)) && f.selected
     );
     
+    // Fallback: if no selected video files, use all video files
     if (videoFiles.length === 0) {
-      console.log('[TorrentManager] No selected video files found for media player check');
+      videoFiles = this.currentTorrent.files.filter(f => 
+        supportedExts.some(ext => f.name.toLowerCase().endsWith(ext))
+      );
+      console.log(`[TorrentManager] No selected video files found, using all video files (${videoFiles.length})`);
+    }
+    
+    if (videoFiles.length === 0) {
+      console.log('[TorrentManager] No video files found for media player check');
       return;
     }
 
@@ -630,35 +667,51 @@ class TorrentManager {
         return { success: true, message: 'Stream is already paused' };
       }
 
-      // Store which files were selected before pausing
-      this.selectedFiles = this.currentTorrent.files.filter(file => file.selected);
-      console.log(`[TorrentManager] Storing ${this.selectedFiles.length} selected files for resume`);
+      // Store torrent information for resume
+      this.pausedTorrentInfo = {
+        magnetURI: this.currentTorrent.magnetURI,
+        infoHash: this.currentTorrent.infoHash,
+        name: this.currentTorrent.name,
+        downloadedBytes: this.currentTorrent.downloaded || 0,
+        selectedFiles: this.currentTorrent.files.filter(file => file.selected).map(file => ({
+          path: file.path,
+          name: file.name,
+          length: file.length
+        }))
+      };
 
-      // Deselect all files to stop downloading
-      this.currentTorrent.files.forEach(file => {
-        if (file.selected) {
-          file.deselect();
-        }
+      console.log(`[TorrentManager] Storing torrent info for resume:`, {
+        name: this.pausedTorrentInfo.name,
+        selectedFiles: this.pausedTorrentInfo.selectedFiles.length,
+        downloaded: this.pausedTorrentInfo.downloadedBytes
       });
 
-      // Clear progress interval to stop progress updates
+      // Clear intervals first
       if (this.progressInterval) {
         clearInterval(this.progressInterval);
         this.progressInterval = null;
       }
 
-      // Clear media player readiness check interval
       if (this.mediaPlayerCheckInterval) {
         clearInterval(this.mediaPlayerCheckInterval);
         this.mediaPlayerCheckInterval = null;
       }
 
+      // Completely destroy the torrent to stop all downloading
+      await new Promise((resolve) => {
+        this.currentTorrent.destroy({ destroyStore: false }, () => {
+          console.log('[TorrentManager] Torrent destroyed for pause');
+          resolve();
+        });
+      });
+
+      this.currentTorrent = null;
       this.isPaused = true;
 
-      console.log('[TorrentManager] Stream paused - all files deselected');
+      console.log('[TorrentManager] Stream paused - torrent destroyed');
       this.mainWindow.webContents.send('stream-paused', {
         message: 'Download paused',
-        torrentName: this.currentTorrent.name
+        torrentName: this.pausedTorrentInfo.name
       });
 
       return { success: true, message: 'Stream paused successfully' };
@@ -671,53 +724,87 @@ class TorrentManager {
 
   async resumeStream() {
     try {
-      if (!this.currentTorrent) {
-        throw new Error('No active torrent to resume');
-      }
-
-      if (!this.isPaused) {
-        console.log('[TorrentManager] Stream is not paused');
+      if (!this.isPaused || !this.pausedTorrentInfo) {
+        console.log('[TorrentManager] Stream is not paused or no paused torrent info');
         return { success: true, message: 'Stream is not paused' };
       }
 
-      // Reselect previously selected files
-      if (this.selectedFiles && this.selectedFiles.length > 0) {
-        console.log(`[TorrentManager] Reselecting ${this.selectedFiles.length} files`);
-        this.selectedFiles.forEach(selectedFile => {
-          // Find the corresponding file in current torrent by path
-          const file = this.currentTorrent.files.find(f => f.path === selectedFile.path);
-          if (file) {
-            file.select();
+      console.log('[TorrentManager] Resuming stream from stored info:', this.pausedTorrentInfo.name);
+
+      // Recreate the torrent from the stored magnet URI
+      return new Promise((resolve, reject) => {
+        const torrent = this.client.add(this.pausedTorrentInfo.magnetURI, { path: this.tempDir });
+        
+        if (!torrent) {
+          reject(new Error('Failed to recreate torrent'));
+          return;
+        }
+
+        this.currentTorrent = torrent;
+
+        const waitForReady = new Promise((resolveReady, rejectReady) => {
+          if (torrent.ready) {
+            resolveReady();
+          } else {
+            torrent.once('ready', resolveReady);
+            torrent.once('error', rejectReady);
           }
         });
-      } else {
-        // Fallback: select the largest video file again
-        const supportedExts = ['.mp4', '.mkv', '.webm', '.avi', '.mov'];
-        const videoFiles = this.currentTorrent.files.filter(f => 
-          supportedExts.some(ext => f.name.toLowerCase().endsWith(ext))
-        );
-        if (videoFiles.length > 0) {
-          const file = videoFiles.reduce((a, b) => a.length > b.length ? a : b);
-          file.select();
-          console.log('[TorrentManager] Reselected largest video file:', file.name);
-        }
-      }
 
-      // Restart progress monitoring
-      this.startProgressMonitoring();
+        waitForReady.then(() => {
+          console.log('[TorrentManager] Torrent recreated and ready');
 
-      // Restart media player readiness check
-      this.startMediaPlayerReadinessCheck();
+          // Deselect all files first
+          torrent.files.forEach(f => f.deselect());
 
-      this.isPaused = false;
+          // Reselect the previously selected files
+          if (this.pausedTorrentInfo.selectedFiles && this.pausedTorrentInfo.selectedFiles.length > 0) {
+            console.log(`[TorrentManager] Reselecting ${this.pausedTorrentInfo.selectedFiles.length} files`);
+            
+            this.pausedTorrentInfo.selectedFiles.forEach(selectedFileInfo => {
+              const file = torrent.files.find(f => f.path === selectedFileInfo.path);
+              if (file) {
+                file.select();
+                console.log(`[TorrentManager] Reselected file: ${file.name}`);
+              }
+            });
+          } else {
+            // Fallback: select the largest video file
+            const supportedExts = ['.mp4', '.mkv', '.webm', '.avi', '.mov'];
+            const videoFiles = torrent.files.filter(f => 
+              supportedExts.some(ext => f.name.toLowerCase().endsWith(ext))
+            );
+            if (videoFiles.length > 0) {
+              const file = videoFiles.reduce((a, b) => a.length > b.length ? a : b);
+              file.select();
+              console.log('[TorrentManager] Reselected largest video file:', file.name);
+            }
+          }
 
-      console.log('[TorrentManager] Stream resumed - files reselected');
-      this.mainWindow.webContents.send('stream-resumed', {
-        message: 'Download resumed',
-        torrentName: this.currentTorrent.name
+          // Set baseline downloaded amount for accurate progress reporting
+          this.baselineDownloaded = this.pausedTorrentInfo.downloadedBytes || 0;
+          console.log(`[TorrentManager] Set baseline downloaded: ${this.baselineDownloaded} bytes`);
+
+          // Restart monitoring
+          this.startProgressMonitoring();
+          this.startMediaPlayerReadinessCheck();
+
+          // Clear paused state
+          this.isPaused = false;
+          this.pausedTorrentInfo = null;
+
+          console.log('[TorrentManager] Stream resumed - torrent recreated');
+          this.mainWindow.webContents.send('stream-resumed', {
+            message: 'Download resumed',
+            torrentName: torrent.name
+          });
+
+          resolve({ success: true, message: 'Stream resumed successfully' });
+        }).catch((error) => {
+          console.error('[TorrentManager] Error waiting for torrent ready on resume:', error);
+          reject(error);
+        });
       });
-
-      return { success: true, message: 'Stream resumed successfully' };
     } catch (error) {
       console.error('[TorrentManager] Error resuming stream:', error);
       this.mainWindow.webContents.send('stream-error', `Failed to resume: ${error.message}`);
