@@ -7,6 +7,15 @@ let currentPage = 1;
 let totalPages = 0;
 let totalResults = 0;
 
+// Loading messages
+const loadingMessages = [
+    { main: 'Searching for torrents...', sub: 'This may take a few seconds' },
+    { main: 'Scouring the high seas...', sub: 'Finding the best torrents for you' },
+    { main: 'Connecting to torrent sites...', sub: 'Gathering search results' },
+    { main: 'Hunting for content...', sub: 'Please wait while we search' },
+    { main: 'Exploring torrent networks...', sub: 'Almost there...' }
+];
+
 // DOM Elements
 const elements = {
     searchInput: null,
@@ -735,15 +744,46 @@ function handleSearch() {
     performSearch(query, 1);
 }
 
+// Function to show loading indicator with random message
+function showLoadingIndicator() {
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    if (!loadingIndicator) return;
+    
+    // Get random loading message
+    const randomMessage = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+    
+    // Update the loading text
+    const mainText = loadingIndicator.querySelector('p:first-of-type');
+    const subText = loadingIndicator.querySelector('p:last-of-type');
+    
+    if (mainText) mainText.textContent = randomMessage.main;
+    if (subText) subText.textContent = randomMessage.sub;
+    
+    // Show the loading indicator
+    loadingIndicator.classList.remove('hidden');
+}
+
 function performSearch(query, page = 1) {
     // Show loading state
     elements.searchBtn.disabled = true;
     elements.searchBtn.textContent = 'Searching...';
     
-    // Hide pagination while loading
+    // Show loading indicator with random message
+    showLoadingIndicator();
+    
+    // Hide results and pagination while loading
+    const resultsContainer = document.getElementById('resultsContainer');
     const paginationContainer = document.getElementById('paginationContainer');
+    const resultsInfo = document.getElementById('resultsInfo');
+    
+    if (resultsContainer) {
+        resultsContainer.innerHTML = '';
+    }
     if (paginationContainer) {
         paginationContainer.classList.add('hidden');
+    }
+    if (resultsInfo) {
+        resultsInfo.classList.add('hidden');
     }
     
     // Send search request to main process with pagination
@@ -752,6 +792,12 @@ function performSearch(query, page = 1) {
 
 function displayResults(data) {
     const { resultsContainer } = elements;
+    
+    // Hide loading indicator
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    if (loadingIndicator) {
+        loadingIndicator.classList.add('hidden');
+    }
     
     // Reset button state
     elements.searchBtn.disabled = false;
