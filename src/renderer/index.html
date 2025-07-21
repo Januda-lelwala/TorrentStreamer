@@ -49,76 +49,14 @@
                 </button>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="md:col-span-2">
-                <div id="videoContainer" class="bg-black rounded-lg overflow-hidden aspect-video mb-6">
-                    <video 
-                        id="videoPlayer" 
-                        controls 
-                        class="w-full h-full"
-                        style="display: none;"
-                    ></video>
-                    <div id="videoPlaceholder" class="flex items-center justify-center h-full text-gray-500">
-                        <p>No video selected</p>
+            <!-- Centered Search Results -->
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-2xl font-semibold mb-6 text-center">Search Results</h2>
+                    <div id="resultsContainer" class="space-y-4 overflow-y-auto max-h-[700px]">
+                        <p class="text-gray-500 text-center py-12 text-lg">Search for torrents to see results</p>
                     </div>
                 </div>
-                
-                <div id="progress-container" class="hidden bg-gray-800 rounded-lg p-6 mb-6">
-                    <div class="mb-4">
-                        <div class="flex justify-between items-center mb-2">
-                            <span id="status" class="text-white font-medium">Preparing download...</span>
-                            <span id="status-text" class="text-gray-400 text-sm"></span>
-                        </div>
-                        <div class="w-full bg-gray-700 rounded-full h-3">
-                            <div id="progressBar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                        <div class="text-center">
-                            <div class="text-gray-400">Speed</div>
-                            <div id="downloadSpeed" class="text-white font-medium">0 MB/s</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-gray-400">Downloaded</div>
-                            <div id="downloaded" class="text-white font-medium">0 MB</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-gray-400">Total Size</div>
-                            <div id="totalSize" class="text-white font-medium">0 MB</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-gray-400">Peers</div>
-                            <div id="numPeers" class="text-white font-medium">0</div>
-                        </div>
-                    </div>
-                    
-                    <div class="flex justify-center gap-4">
-                        <button 
-                            id="launchPlayerBtn" 
-                            class="bg-gray-500 px-6 py-2 rounded-lg font-medium transition-colors text-gray-300 cursor-not-allowed"
-                            disabled
-                        >
-                            Launch Media Player
-                        </button>
-                        <button 
-                            id="stopBtn" 
-                            class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded-lg font-medium transition-colors text-white"
-                        >
-                            Stop Download
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div>
-                <div class="bg-gray-800 rounded-lg p-4 h-full">
-                    <h2 class="text-xl font-semibold mb-4">Search Results</h2>
-                    <div id="resultsContainer" class="space-y-4 overflow-y-auto max-h-[600px] pr-2">
-                        <p class="text-gray-500 text-center py-8">Search for torrents to see results</p>
-                    </div>
-                </div>
-            </div>
             </div>
         </div>
         
@@ -241,6 +179,120 @@
                             Save Settings
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Status Bar -->
+    <div id="bottom-status-bar" class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50">
+        <div class="container mx-auto px-4 py-3">
+            <!-- Status Header -->
+            <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center gap-3">
+                    <span id="status" class="text-white font-medium">No video selected</span>
+                    <span id="status-text" class="text-gray-400 text-sm">Search and select a torrent to start streaming</span>
+                </div>
+                <div class="flex gap-2">
+                    <button 
+                        id="launchPlayerBtn" 
+                        class="bg-gray-500 px-4 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm"
+                        disabled
+                    >
+                        Launch Media Player
+                    </button>
+                    <button 
+                        id="pauseResumeBtn" 
+                        class="bg-gray-500 px-4 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm"
+                        disabled
+                    >
+                        Pause
+                    </button>
+                    <button 
+                        id="stopBtn" 
+                        class="bg-gray-500 px-4 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm"
+                        disabled
+                    >
+                        Stop
+                    </button>
+                    <button 
+                        id="minimizeStatusBtn" 
+                        class="bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded font-medium transition-colors text-white text-sm"
+                        title="Minimize status bar"
+                    >
+                        ▼
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="w-full bg-gray-700 rounded-full h-2 mb-3">
+                <div id="progressBar" class="bg-gray-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            
+            <!-- Download Stats -->
+            <div id="download-stats" class="grid grid-cols-2 md:grid-cols-6 gap-4 text-xs">
+                <div class="text-center">
+                    <div class="text-gray-400">Speed</div>
+                    <div id="downloadSpeed" class="text-gray-500 font-medium">--</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-400">Downloaded</div>
+                    <div id="downloaded" class="text-gray-500 font-medium">--</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-400">Total Size</div>
+                    <div id="totalSize" class="text-gray-500 font-medium">--</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-400">Progress</div>
+                    <div id="progressPercent" class="text-gray-500 font-medium">--</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-400">Peers</div>
+                    <div id="numPeers" class="text-gray-500 font-medium">--</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-gray-400">ETA</div>
+                    <div id="eta" class="text-gray-500 font-medium">--</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Minimized Status Bar -->
+    <div id="minimized-status-bar" class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50 hidden">
+        <div class="container mx-auto px-4 py-2">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <span id="mini-status" class="text-white text-sm font-medium">Downloading...</span>
+                    <div class="w-32 bg-gray-700 rounded-full h-1">
+                        <div id="mini-progressBar" class="bg-blue-600 h-1 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <span id="mini-speed" class="text-gray-400 text-sm">0 MB/s</span>
+                </div>
+                <div class="flex gap-2">
+                    <button 
+                        id="expandStatusBtn" 
+                        class="bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded font-medium transition-colors text-white text-sm"
+                        title="Expand status bar"
+                    >
+                        ▲
+                    </button>
+                    <button 
+                        id="mini-pauseResumeBtn" 
+                        class="bg-gray-500 px-3 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm"
+                        disabled
+                    >
+                        Pause
+                    </button>
+                    <button 
+                        id="mini-stopBtn" 
+                        class="bg-gray-500 px-3 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm"
+                        disabled
+                    >
+                        Stop
+                    </button>
                 </div>
             </div>
         </div>

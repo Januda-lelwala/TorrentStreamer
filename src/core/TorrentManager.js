@@ -31,6 +31,10 @@ class TorrentManager {
     this.vlcProcess = null;
     this.tempDir = path.join(os.tmpdir(), 'torrent-streamer');
     this.initialized = false;
+    this.isPaused = false;
+    this.selectedFiles = [];
+    this.progressInterval = null;
+    this.mediaPlayerCheckInterval = null;
     this.initPromise = this.initialize();
   }
 
@@ -152,8 +156,10 @@ class TorrentManager {
     }
 
     if (this.currentTorrent) {
+      console.log('[TorrentManager] Torrent destroyed');
       this.currentTorrent.destroy();
       this.currentTorrent = null;
+      this.isPaused = false; // Reset pause state
     }
 
     if (this.progressInterval) {
@@ -488,6 +494,7 @@ class TorrentManager {
         console.error('[TorrentManager] Error destroying torrent:', error);
       } finally {
         this.currentTorrent = null;
+        this.isPaused = false; // Reset pause state
       }
     }
 
@@ -502,6 +509,227 @@ class TorrentManager {
     }
     
     console.log('[TorrentManager] Stream stopped');
+  }
+
+  startProgressMonitoring() {
+    if (!this.currentTorrent) {
+      console.log('[TorrentManager] No current torrent for progress monitoring');
+      return;
+    }
+
+    // Clear any existing interval
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+    }
+
+    const sendProgress = () => {
+      if (!this.currentTorrent) return;
+      
+      const progress = {
+        progress: Math.round((this.currentTorrent.progress || 0) * 100),
+        downloadSpeed: Math.round((this.currentTorrent.downloadSpeed || 0) / 1024 / 1024 * 100) / 100,
+        uploadSpeed: Math.round((this.currentTorrent.uploadSpeed || 0) / 1024 / 1024 * 100) / 100,
+        downloaded: Math.round((this.currentTorrent.downloaded || 0) / 1024 / 1024 * 100) / 100,
+        length: Math.round((this.currentTorrent.length || 0) / 1024 / 1024 * 100) / 100,
+        numPeers: this.currentTorrent.numPeers || 0,
+        ratio: Math.round((this.currentTorrent.ratio || 0) * 100) / 100,
+        timeRemaining: this.currentTorrent.timeRemaining || 0,
+        name: this.currentTorrent.name || 'Unknown'
+      };
+      
+      this.mainWindow.webContents.send('download-progress', progress);
+    };
+
+    // Send initial progress
+    sendProgress();
+    
+    // Set up interval for regular updates
+    this.progressInterval = setInterval(() => {
+      sendProgress();
+    }, 1000);
+
+    console.log('[TorrentManager] Progress monitoring started');
+  }
+
+  startMediaPlayerReadinessCheck() {
+    if (!this.currentTorrent) {
+      console.log('[TorrentManager] No current torrent for media player readiness check');
+      return;
+    }
+
+    // Clear any existing interval
+    if (this.mediaPlayerCheckInterval) {
+      clearInterval(this.mediaPlayerCheckInterval);
+    }
+
+    // Find the selected video file
+    const supportedExts = ['.mp4', '.mkv', '.webm', '.avi', '.mov'];
+    const videoFiles = this.currentTorrent.files.filter(f => 
+      supportedExts.some(ext => f.name.toLowerCase().endsWith(ext)) && f.selected
+    );
+    
+    if (videoFiles.length === 0) {
+      console.log('[TorrentManager] No selected video files found for media player check');
+      return;
+    }
+
+    const file = videoFiles.reduce((a, b) => a.length > b.length ? a : b);
+    const selectedFilePath = path.join(this.tempDir, file.path);
+    const minDownloadSize = 1024 * 1024; // 1MB minimum
+    
+    let mediaPlayerReady = false;
+    const checkMediaPlayerReady = () => {
+      if (!mediaPlayerReady && this.currentTorrent) {
+        const downloaded = this.currentTorrent.downloaded || 0;
+        const fileExists = fs.existsSync(selectedFilePath);
+        
+        console.log(`[DEBUG] Checking media player readiness: ${downloaded} bytes downloaded, file exists: ${fileExists}`);
+        
+        if (downloaded > minDownloadSize || fileExists) {
+          console.log('[DEBUG] Media player ready condition met, sending event');
+          mediaPlayerReady = true;
+          this.mainWindow.webContents.send('media-player-ready', {
+            filePath: selectedFilePath,
+            fileName: file.name,
+            downloaded: downloaded
+          });
+          
+          // Clear the interval since we're ready
+          if (this.mediaPlayerCheckInterval) {
+            clearInterval(this.mediaPlayerCheckInterval);
+            this.mediaPlayerCheckInterval = null;
+          }
+        }
+      }
+    };
+    
+    // Check immediately
+    setTimeout(() => checkMediaPlayerReady(), 1000);
+    
+    // Set up periodic check every 2 seconds
+    this.mediaPlayerCheckInterval = setInterval(() => {
+      if (mediaPlayerReady || !this.currentTorrent) {
+        clearInterval(this.mediaPlayerCheckInterval);
+        this.mediaPlayerCheckInterval = null;
+        return;
+      }
+      checkMediaPlayerReady();
+    }, 2000);
+
+    console.log('[TorrentManager] Media player readiness check started');
+  }
+
+  async pauseStream() {
+    try {
+      if (!this.currentTorrent) {
+        throw new Error('No active torrent to pause');
+      }
+
+      if (this.isPaused) {
+        console.log('[TorrentManager] Stream is already paused');
+        return { success: true, message: 'Stream is already paused' };
+      }
+
+      // Store which files were selected before pausing
+      this.selectedFiles = this.currentTorrent.files.filter(file => file.selected);
+      console.log(`[TorrentManager] Storing ${this.selectedFiles.length} selected files for resume`);
+
+      // Deselect all files to stop downloading
+      this.currentTorrent.files.forEach(file => {
+        if (file.selected) {
+          file.deselect();
+        }
+      });
+
+      // Clear progress interval to stop progress updates
+      if (this.progressInterval) {
+        clearInterval(this.progressInterval);
+        this.progressInterval = null;
+      }
+
+      // Clear media player readiness check interval
+      if (this.mediaPlayerCheckInterval) {
+        clearInterval(this.mediaPlayerCheckInterval);
+        this.mediaPlayerCheckInterval = null;
+      }
+
+      this.isPaused = true;
+
+      console.log('[TorrentManager] Stream paused - all files deselected');
+      this.mainWindow.webContents.send('stream-paused', {
+        message: 'Download paused',
+        torrentName: this.currentTorrent.name
+      });
+
+      return { success: true, message: 'Stream paused successfully' };
+    } catch (error) {
+      console.error('[TorrentManager] Error pausing stream:', error);
+      this.mainWindow.webContents.send('stream-error', `Failed to pause: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async resumeStream() {
+    try {
+      if (!this.currentTorrent) {
+        throw new Error('No active torrent to resume');
+      }
+
+      if (!this.isPaused) {
+        console.log('[TorrentManager] Stream is not paused');
+        return { success: true, message: 'Stream is not paused' };
+      }
+
+      // Reselect previously selected files
+      if (this.selectedFiles && this.selectedFiles.length > 0) {
+        console.log(`[TorrentManager] Reselecting ${this.selectedFiles.length} files`);
+        this.selectedFiles.forEach(selectedFile => {
+          // Find the corresponding file in current torrent by path
+          const file = this.currentTorrent.files.find(f => f.path === selectedFile.path);
+          if (file) {
+            file.select();
+          }
+        });
+      } else {
+        // Fallback: select the largest video file again
+        const supportedExts = ['.mp4', '.mkv', '.webm', '.avi', '.mov'];
+        const videoFiles = this.currentTorrent.files.filter(f => 
+          supportedExts.some(ext => f.name.toLowerCase().endsWith(ext))
+        );
+        if (videoFiles.length > 0) {
+          const file = videoFiles.reduce((a, b) => a.length > b.length ? a : b);
+          file.select();
+          console.log('[TorrentManager] Reselected largest video file:', file.name);
+        }
+      }
+
+      // Restart progress monitoring
+      this.startProgressMonitoring();
+
+      // Restart media player readiness check
+      this.startMediaPlayerReadinessCheck();
+
+      this.isPaused = false;
+
+      console.log('[TorrentManager] Stream resumed - files reselected');
+      this.mainWindow.webContents.send('stream-resumed', {
+        message: 'Download resumed',
+        torrentName: this.currentTorrent.name
+      });
+
+      return { success: true, message: 'Stream resumed successfully' };
+    } catch (error) {
+      console.error('[TorrentManager] Error resuming stream:', error);
+      this.mainWindow.webContents.send('stream-error', `Failed to resume: ${error.message}`);
+      throw error;
+    }
+  }
+
+  getPauseState() {
+    return {
+      isPaused: this.isPaused,
+      hasActiveTorrent: !!this.currentTorrent
+    };
   }
 }
 

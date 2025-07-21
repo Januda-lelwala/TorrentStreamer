@@ -49,12 +49,8 @@ async function stopStream() {
         // Call the stop-stream IPC method
         await window.api.invoke('stop-stream');
         
-        // Hide the progress container
-        const progressContainer = document.getElementById('progress-container');
-        if (progressContainer) {
-            progressContainer.style.display = 'none';
-            progressContainer.classList.add('hidden');
-        }
+        // Hide the bottom status bar
+        hideBottomStatusBar();
         
         // Reset progress elements
         const progressBar = document.getElementById('progressBar');
@@ -232,60 +228,270 @@ window.api.receive('media-player-launched', (data) => {
 
 // Function to update progress display
 function updateProgressDisplay(progress) {
-    // Show the progress container
-    const progressContainer = document.getElementById('progress-container');
-    if (progressContainer) {
-        progressContainer.style.display = 'block';
-        progressContainer.classList.remove('hidden');
+    // Set status bar to downloading state
+    setStatusBarDownloading();
+    showBottomStatusBar();
+    
+    const progressPercent = Math.min(progress.progress || 0, 100);
+    const speedBytes = progress.downloadSpeed || 0;
+    const speedMBps = (speedBytes / (1024 * 1024)).toFixed(2);
+    const downloadedBytes = progress.downloaded || 0;
+    const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(1);
+    const totalBytes = progress.totalSize || 0;
+    const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
+    const numPeers = progress.numPeers || 0;
+    
+    // Calculate ETA
+    let eta = '--';
+    if (speedBytes > 0 && totalBytes > downloadedBytes) {
+        const remainingBytes = totalBytes - downloadedBytes;
+        const etaSeconds = remainingBytes / speedBytes;
+        if (etaSeconds < 3600) {
+            eta = `${Math.floor(etaSeconds / 60)}m ${Math.floor(etaSeconds % 60)}s`;
+        } else {
+            eta = `${Math.floor(etaSeconds / 3600)}h ${Math.floor((etaSeconds % 3600) / 60)}m`;
+        }
     }
     
-    // Update progress bar
+    // Update main progress bar
     const progressBar = document.getElementById('progressBar');
-    if (progressBar && progress.progress !== undefined) {
-        const progressPercent = Math.min(progress.progress || 0, 100);
+    if (progressBar) {
         progressBar.style.width = `${progressPercent}%`;
+    }
+    
+    // Update minimized progress bar
+    const miniProgressBar = document.getElementById('mini-progressBar');
+    if (miniProgressBar) {
+        miniProgressBar.style.width = `${progressPercent}%`;
     }
     
     // Update status text
     const statusElement = document.getElementById('status');
     if (statusElement) {
-        if (progress.progress >= 100) {
+        if (progressPercent >= 100) {
             statusElement.textContent = 'Download Complete';
         } else {
-            const progressText = `Downloading... ${(progress.progress || 0).toFixed(1)}%`;
-            statusElement.textContent = progressText;
+            statusElement.textContent = `Downloading ${progress.fileName || 'torrent'}...`;
         }
     }
     
-    // Update download speed
-    const downloadSpeedElement = document.getElementById('downloadSpeed');
-    if (downloadSpeedElement) {
-        const speedBytes = progress.downloadSpeed || 0;
-        const speedMBps = (speedBytes / (1024 * 1024)).toFixed(2);
-        downloadSpeedElement.textContent = `${speedMBps} MB/s`;
+    // Update minimized status
+    const miniStatus = document.getElementById('mini-status');
+    if (miniStatus) {
+        if (progressPercent >= 100) {
+            miniStatus.textContent = 'Download Complete';
+        } else {
+            miniStatus.textContent = `Downloading... ${progressPercent.toFixed(1)}%`;
+        }
     }
     
-    // Update downloaded amount
-    const downloadedElement = document.getElementById('downloaded');
-    if (downloadedElement) {
-        const downloadedBytes = progress.downloaded || 0;
-        const downloadedMB = (downloadedBytes / (1024 * 1024)).toFixed(1);
-        downloadedElement.textContent = `${downloadedMB} MB`;
+    // Update all stats
+    updateElement('downloadSpeed', `${speedMBps} MB/s`);
+    updateElement('downloaded', `${downloadedMB} MB`);
+    updateElement('totalSize', `${totalMB} MB`);
+    updateElement('progressPercent', `${progressPercent.toFixed(1)}%`);
+    updateElement('numPeers', numPeers.toString());
+    updateElement('eta', eta);
+    updateElement('mini-speed', `${speedMBps} MB/s`);
+}
+
+// Helper function to update element text content
+function updateElement(id, text) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.textContent = text;
+    }
+}
+
+// Function to set status bar to idle state
+function setStatusBarIdle() {
+    updateElement('status', 'No video selected');
+    updateElement('status-text', 'Search and select a torrent to start streaming');
+    updateElement('mini-status', 'No video selected');
+    
+    // Reset all stats to idle state
+    updateElement('downloadSpeed', '--');
+    updateElement('downloaded', '--');
+    updateElement('totalSize', '--');
+    updateElement('progressPercent', '--');
+    updateElement('numPeers', '--');
+    updateElement('eta', '--');
+    updateElement('mini-speed', '--');
+    
+    // Reset progress bars
+    const progressBar = document.getElementById('progressBar');
+    const miniProgressBar = document.getElementById('mini-progressBar');
+    if (progressBar) {
+        progressBar.style.width = '0%';
+        progressBar.className = 'bg-gray-600 h-2 rounded-full transition-all duration-300';
+    }
+    if (miniProgressBar) {
+        miniProgressBar.style.width = '0%';
     }
     
-    // Update total size (if available)
-    const totalSizeElement = document.getElementById('totalSize');
-    if (totalSizeElement) {
-        const totalBytes = progress.totalSize || 0;
-        const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
-        totalSizeElement.textContent = `${totalMB} MB`;
+    // Disable buttons
+    const launchBtn = document.getElementById('launchPlayerBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+    const miniStopBtn = document.getElementById('mini-stopBtn');
+    const miniPauseResumeBtn = document.getElementById('mini-pauseResumeBtn');
+    
+    if (launchBtn) {
+        launchBtn.disabled = true;
+        launchBtn.className = 'bg-gray-500 px-4 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm';
+    }
+    if (stopBtn) {
+        stopBtn.disabled = true;
+        stopBtn.className = 'bg-gray-500 px-4 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm';
+    }
+    if (pauseResumeBtn) {
+        pauseResumeBtn.disabled = true;
+        pauseResumeBtn.className = 'bg-gray-500 px-4 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm';
+        pauseResumeBtn.textContent = 'Pause';
+    }
+    if (miniStopBtn) {
+        miniStopBtn.disabled = true;
+        miniStopBtn.className = 'bg-gray-500 px-3 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm';
+    }
+    if (miniPauseResumeBtn) {
+        miniPauseResumeBtn.disabled = true;
+        miniPauseResumeBtn.className = 'bg-gray-500 px-3 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm';
+        miniPauseResumeBtn.textContent = 'Pause';
     }
     
-    // Update peers info if available
-    if (progress.numPeers !== undefined && statusElement && progress.progress < 100) {
-        const peersInfo = `${progress.numPeers} peers`;
-        const statusWithPeers = `Downloading... ${(progress.progress || 0).toFixed(1)}% (${peersInfo})`;
-        statusElement.textContent = statusWithPeers;
+    // Make stats text gray
+    const statElements = ['downloadSpeed', 'downloaded', 'totalSize', 'progressPercent', 'numPeers', 'eta'];
+    statElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.className = 'text-gray-500 font-medium';
+        }
+    });
+}
+
+// Function to set status bar to downloading state
+function setStatusBarDownloading() {
+    // Enable pause/resume and stop buttons
+    const stopBtn = document.getElementById('stopBtn');
+    const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+    const miniStopBtn = document.getElementById('mini-stopBtn');
+    const miniPauseResumeBtn = document.getElementById('mini-pauseResumeBtn');
+    
+    if (stopBtn) {
+        stopBtn.disabled = false;
+        stopBtn.className = 'bg-red-600 hover:bg-red-700 px-4 py-1 rounded font-medium transition-colors text-white text-sm';
+    }
+    if (pauseResumeBtn) {
+        pauseResumeBtn.disabled = false;
+        pauseResumeBtn.className = 'bg-yellow-600 hover:bg-yellow-700 px-4 py-1 rounded font-medium transition-colors text-white text-sm';
+        pauseResumeBtn.textContent = 'Pause';
+    }
+    if (miniStopBtn) {
+        miniStopBtn.disabled = false;
+        miniStopBtn.className = 'bg-red-600 hover:bg-red-700 px-3 py-1 rounded font-medium transition-colors text-white text-sm';
+    }
+    if (miniPauseResumeBtn) {
+        miniPauseResumeBtn.disabled = false;
+        miniPauseResumeBtn.className = 'bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded font-medium transition-colors text-white text-sm';
+        miniPauseResumeBtn.textContent = 'Pause';
+    }
+    
+    // Make progress bar blue
+    const progressBar = document.getElementById('progressBar');
+    if (progressBar) {
+        progressBar.className = 'bg-blue-600 h-2 rounded-full transition-all duration-300';
+    }
+    
+    // Make stats text white
+    const statElements = ['downloadSpeed', 'downloaded', 'totalSize', 'progressPercent', 'numPeers', 'eta'];
+    statElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.className = 'text-white font-medium';
+        }
+    });
+}
+
+// Function to set status bar to paused state
+function setStatusBarPaused() {
+    // Update status text
+    updateElement('status', 'Download paused');
+    updateElement('status-text', 'Click Resume to continue downloading');
+    updateElement('mini-status', 'Paused');
+    
+    // Enable resume and stop buttons
+    const stopBtn = document.getElementById('stopBtn');
+    const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+    const miniStopBtn = document.getElementById('mini-stopBtn');
+    const miniPauseResumeBtn = document.getElementById('mini-pauseResumeBtn');
+    
+    if (stopBtn) {
+        stopBtn.disabled = false;
+        stopBtn.className = 'bg-red-600 hover:bg-red-700 px-4 py-1 rounded font-medium transition-colors text-white text-sm';
+    }
+    if (pauseResumeBtn) {
+        pauseResumeBtn.disabled = false;
+        pauseResumeBtn.className = 'bg-green-600 hover:bg-green-700 px-4 py-1 rounded font-medium transition-colors text-white text-sm';
+        pauseResumeBtn.textContent = 'Resume';
+    }
+    if (miniStopBtn) {
+        miniStopBtn.disabled = false;
+        miniStopBtn.className = 'bg-red-600 hover:bg-red-700 px-3 py-1 rounded font-medium transition-colors text-white text-sm';
+    }
+    if (miniPauseResumeBtn) {
+        miniPauseResumeBtn.disabled = false;
+        miniPauseResumeBtn.className = 'bg-green-600 hover:bg-green-700 px-3 py-1 rounded font-medium transition-colors text-white text-sm';
+        miniPauseResumeBtn.textContent = 'Resume';
+    }
+    
+    // Make progress bar orange to indicate paused state
+    const progressBar = document.getElementById('progressBar');
+    if (progressBar) {
+        progressBar.className = 'bg-orange-500 h-2 rounded-full transition-all duration-300';
+    }
+    
+    // Keep stats text white but update speed to show paused
+    updateElement('downloadSpeed', '0 MB/s (Paused)');
+    updateElement('mini-speed', 'Paused');
+}
+
+// Function to show bottom status bar (now always visible, just ensure padding)
+function showBottomStatusBar() {
+    // Always ensure proper padding since status bar is always visible
+    document.body.style.paddingBottom = '140px';
+}
+
+// Function to hide bottom status bar (now just resets to idle state)
+function hideBottomStatusBar() {
+    // Instead of hiding, reset to idle state
+    setStatusBarIdle();
+    // Keep the status bar visible with proper padding
+    document.body.style.paddingBottom = '140px';
+}
+
+// Function to minimize status bar
+function minimizeStatusBar() {
+    const bottomStatusBar = document.getElementById('bottom-status-bar');
+    const minimizedStatusBar = document.getElementById('minimized-status-bar');
+    
+    if (bottomStatusBar && minimizedStatusBar) {
+        bottomStatusBar.classList.add('hidden');
+        minimizedStatusBar.classList.remove('hidden');
+        // Reduce padding for minimized bar
+        document.body.style.paddingBottom = '50px';
+    }
+}
+
+// Function to expand status bar
+function expandStatusBar() {
+    const bottomStatusBar = document.getElementById('bottom-status-bar');
+    const minimizedStatusBar = document.getElementById('minimized-status-bar');
+    
+    if (bottomStatusBar && minimizedStatusBar) {
+        minimizedStatusBar.classList.add('hidden');
+        bottomStatusBar.classList.remove('hidden');
+        // Restore full padding
+        document.body.style.paddingBottom = '140px';
     }
 }
 
@@ -612,15 +818,11 @@ async function startStream(magnet, name) {
     const launchPlayerBtn = document.getElementById('launchPlayerBtn');
     if (launchPlayerBtn) {
         launchPlayerBtn.disabled = true;
-        launchPlayerBtn.className = 'bg-gray-500 px-6 py-2 rounded-lg font-medium transition-colors text-gray-300 cursor-not-allowed';
+        launchPlayerBtn.className = 'bg-gray-500 px-4 py-1 rounded font-medium transition-colors text-gray-300 cursor-not-allowed text-sm';
     }
     
-    // Show the progress container immediately
-    const progressContainer = document.getElementById('progress-container');
-    if (progressContainer) {
-        progressContainer.style.display = 'block';
-        progressContainer.classList.remove('hidden');
-    }
+    // Show the bottom status bar immediately
+    showBottomStatusBar();
     
     // Initialize progress display
     const statusEl = document.getElementById('status');
@@ -658,10 +860,8 @@ async function startStream(magnet, name) {
             statusElement.textContent = `Error: ${error.message}`;
         }
         
-        // Hide progress container on error
-        if (progressContainer) {
-            progressContainer.style.display = 'none';
-        }
+        // Hide bottom status bar on error
+        hideBottomStatusBar();
         
         // Show error in video placeholder
         if (videoPlaceholder) {
@@ -788,5 +988,85 @@ function browseDirectory() {
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initSettings();
+    initBottomStatusBar();
+    // Initialize status bar to idle state
+    setStatusBarIdle();
+    // Ensure proper padding for always-visible status bar
+    document.body.style.paddingBottom = '140px';
+});
+
+// Initialize bottom status bar event listeners
+function initBottomStatusBar() {
+    // Minimize status bar button
+    const minimizeBtn = document.getElementById('minimizeStatusBtn');
+    if (minimizeBtn) {
+        minimizeBtn.addEventListener('click', minimizeStatusBar);
+    }
+    
+    // Expand status bar button
+    const expandBtn = document.getElementById('expandStatusBtn');
+    if (expandBtn) {
+        expandBtn.addEventListener('click', expandStatusBar);
+    }
+    
+    // Mini stop button
+    const miniStopBtn = document.getElementById('mini-stopBtn');
+    if (miniStopBtn) {
+        miniStopBtn.addEventListener('click', stopStream);
+    }
+    
+    // Regular stop button (already handled in existing code, but ensure it works)
+    const stopBtn = document.getElementById('stopBtn');
+    if (stopBtn) {
+        stopBtn.addEventListener('click', stopStream);
+    }
+    
+    // Pause/Resume button
+    const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+    if (pauseResumeBtn) {
+        pauseResumeBtn.addEventListener('click', togglePauseResume);
+    }
+    
+    // Mini pause/resume button
+    const miniPauseResumeBtn = document.getElementById('mini-pauseResumeBtn');
+    if (miniPauseResumeBtn) {
+        miniPauseResumeBtn.addEventListener('click', togglePauseResume);
+    }
+}
+
+// Toggle pause/resume functionality
+async function togglePauseResume() {
+    try {
+        const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+        const miniPauseResumeBtn = document.getElementById('mini-pauseResumeBtn');
+        
+        const currentText = pauseResumeBtn?.textContent || 'Pause';
+        
+        if (currentText === 'Pause') {
+            // Pause the stream
+            console.log('Pausing stream...');
+            const result = await window.api.invoke('pause-stream');
+            console.log('Pause result:', result);
+        } else {
+            // Resume the stream
+            console.log('Resuming stream...');
+            const result = await window.api.invoke('resume-stream');
+            console.log('Resume result:', result);
+        }
+    } catch (error) {
+        console.error('Error toggling pause/resume:', error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+// Event listeners for pause/resume events from main process
+window.api.receive('stream-paused', (data) => {
+    console.log('Stream paused event received:', data);
+    setStatusBarPaused();
+});
+
+window.api.receive('stream-resumed', (data) => {
+    console.log('Stream resumed event received:', data);
+    setStatusBarDownloading();
 });
 

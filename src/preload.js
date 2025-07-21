@@ -21,7 +21,9 @@ contextBridge.exposeInMainWorld('api', {
     const validChannels = [
       'start-stream',
       'stop-stream',
-      'launch-media-player'
+      'launch-media-player',
+      'pause-stream',
+      'resume-stream'
     ];
     if (validChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, data);
@@ -36,6 +38,8 @@ contextBridge.exposeInMainWorld('api', {
       'download-progress',
       'media-player-ready',
       'media-player-launched',
+      'stream-paused',
+      'stream-resumed',
       'settings-data',
       'directory-selected'
     ];
